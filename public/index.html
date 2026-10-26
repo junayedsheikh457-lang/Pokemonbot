@@ -85,6 +85,14 @@ body{padding:0 0 calc(76px + env(safe-area-inset-bottom));min-width:0}
 @media(min-width:540px){.wrap{max-width:430px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.art{height:150px}}
 @media(min-width:760px){body{padding-left:0}.wrap{padding:12px 12px 20px}.top{margin:0 -12px 14px}.bottom{position:fixed;left:50%;right:auto;top:auto;bottom:0;width:100%;max-width:430px;transform:translateX(-50%);border-right:1px solid #1a3d54}.nav{display:grid;flex-direction:initial}.nav button{text-align:center;display:block;padding:7px 2px;font-size:10px}.nav button strong{font-size:20px;width:auto;margin:0 0 3px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.art{height:150px}}
 
+
+/* Real card images in gold frames */
+.cardart.realcard{width:112px;height:140px;padding:3px;overflow:hidden;background:linear-gradient(135deg,#fff0a2,#b57c12 30%,#ffe27a 55%,#7d520a);border:2px solid #ffd43b;border-radius:9px;transform:rotate(-2deg);box-shadow:0 0 15px #f6bd2a35,0 6px 20px #000}
+.cardart.realcard .shine{z-index:2;inset:3px;border:1px solid #fff5b560;pointer-events:none}
+.cardart.realcard img{width:100%;height:100%;object-fit:contain;display:block;border-radius:5px;background:#111}
+.cardart.realcard .monster,.cardart.realcard small{display:none}
+@media(max-width:430px){.cardart.realcard{width:95px;height:132px}}
+
 </style>
 </head>
 <body>
@@ -119,7 +127,15 @@ const cards=[
 ['Charizard','Fire','🔥',4500,'LEGENDARY'],['Pikachu','Electric','⚡',2800,'POPULAR'],['Mewtwo','Psychic','🌀',5200,'RARE'],['Blastoise','Water','💧',3900,'RARE'],['Lugia','Sky','🌊',6300,'LEGENDARY'],['Gengar','Shadow','👻',3200,'RARE'],['Pikachu Golden','Electric','⚡',3500,'POPULAR'],['Charizard Golden','Fire','🔥',4500,'LEGENDARY'],['Mewtwo Golden','Psychic','🌀',5200,'RARE'],['Blastoise Golden','Water','💧',3900,'RARE'],['Lugia Golden','Sky','🌊',6300,'LEGENDARY'],['Gengar Golden','Shadow','👻',3200,'RARE']];
 for(let i=13;i<=40;i++){const base=cards[(i-13)%12];cards.push([base[0]+' #'+i,base[1],base[2],Math.max(350,base[3]+((i%5)-2)*45),i%4===0?'RARE':'COLLECTOR'])}
 let category='All';const cats=['All','Legendary','Rare','Popular','New'];
-function art(c){return '<div class="art"><span class="tag">'+c[4]+'</span><div class="cardart"><div class="shine"></div><div class="monster">'+c[2]+'</div><small>GOLDEN • '+String(c[0].split(' ')[0]).toUpperCase()+'</small></div></div>'}
+const cardImages={
+'Charizard':'https://images.pokemontcg.io/base1/4.png',
+'Pikachu':'https://images.pokemontcg.io/base1/58.png',
+'Mewtwo':'https://images.pokemontcg.io/base1/10.png',
+'Blastoise':'https://images.pokemontcg.io/base1/2.png',
+'Lugia':'https://images.pokemontcg.io/neo1/9.png',
+'Gengar':'https://images.pokemontcg.io/fossil/5.png'
+};
+function art(c){const key=c[0].replace(' Golden','').replace(/ #\\d+$/,'');const src=cardImages[key];return '<div class="art"><span class="tag">'+c[4]+'</span><div class="cardart realcard"><div class="shine"></div>'+(src?'<img loading="lazy" src="'+src+'" alt="'+key+' Pokémon trading card" onerror="this.style.display=\'none\';this.parentElement.classList.add(\'fallback\');this.parentElement.insertAdjacentHTML(\'beforeend\',\'<div class=\\\'monster\\\'>✨</div><small>GOLDEN • '+key.toUpperCase()+'</small>\')">':'<div class="monster">'+c[2]+'</div><small>GOLDEN • '+key.toUpperCase()+'</small>')+'</div></div>'}
 function cardHtml(c,i){return '<article class="card">'+art(c)+'<div class="cardbody"><h4>'+c[0]+'</h4><div class="sub">'+c[1]+'</div><div class="priceRow"><span class="price">৳'+c[3].toLocaleString('en-BD')+'</span><button class="buy" onclick="buyPreview(\''+c[0].replace(/'/g,"\\'")+'\', '+c[3]+')">VIEW</button></div></div></article>'}
 document.getElementById('featured').innerHTML=[cards[1],cards[0],cards[2],cards[3],cards[4],cards[5]].map(cardHtml).join('');
 function renderFilters(){document.getElementById('filters').innerHTML=cats.map(c=>'<button class="filter '+(category===c?'active':'')+'" onclick="setCategory(\''+c+'\')">'+c+'</button>').join('')}
