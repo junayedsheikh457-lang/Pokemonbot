@@ -58,6 +58,33 @@ body{background:radial-gradient(ellipse at 50% -15%,#10334b 0,transparent 48%),v
 }
 @media(min-width:1080px){.grid{grid-template-columns:repeat(6,minmax(0,1fr))}.hero{min-height:245px}.art{height:170px}}
 
+
+/* Phone-app mode only: keep the mobile Telegram layout at every screen width */
+body{padding:0 0 calc(76px + env(safe-area-inset-bottom));min-width:0}
+.wrap{width:100%;max-width:430px;margin:0 auto;padding:12px 12px 20px}
+.top{position:relative;top:auto;margin:0 -12px 14px;padding:12px;background:#061522;border-radius:0 0 14px 14px}
+.brand h1{font-size:15px}.logo{width:40px;height:40px}
+.hero{padding:20px 17px;min-height:190px;border-radius:17px;margin-bottom:14px}
+.hero h2{font-size:27px;max-width:260px}.hero p{font-size:12px;max-width:245px}
+.hero:after{font-size:72px;right:0;top:48px;width:38%;height:95px;opacity:.7}
+.stats{display:none}
+.sectionhead{margin:16px 0 11px}
+.sectionhead h3{font-size:17px}
+.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.art{height:150px;padding:7px}
+.cardart{width:82px;height:118px}
+.monster{font-size:40px}
+.cardbody{padding:9px}.cardbody h4{font-size:12px;min-height:28px}
+.priceRow{display:block;margin-top:8px}.price{display:block;font-size:14px;margin-bottom:7px}
+.buy{width:100%;padding:9px;font-size:11px}
+.bottom{left:0;right:0;top:auto;bottom:0;width:100%;height:auto;border-right:0;border-top:1px solid #1a3d54;padding:7px 7px calc(7px + env(safe-area-inset-bottom));align-items:center}
+.nav{display:grid;grid-template-columns:repeat(4,1fr);width:100%;gap:4px}
+.nav button{text-align:center;display:block;padding:7px 2px;font-size:10px;border-radius:10px}
+.nav button strong{font-size:20px;width:auto;margin:0 0 3px;display:block}
+.modal{width:100%;max-width:430px}
+@media(min-width:540px){.wrap{max-width:430px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.art{height:150px}}
+@media(min-width:760px){body{padding-left:0}.wrap{padding:12px 12px 20px}.top{margin:0 -12px 14px}.bottom{position:fixed;left:50%;right:auto;top:auto;bottom:0;width:100%;max-width:430px;transform:translateX(-50%);border-right:1px solid #1a3d54}.nav{display:grid;flex-direction:initial}.nav button{text-align:center;display:block;padding:7px 2px;font-size:10px}.nav button strong{font-size:20px;width:auto;margin:0 0 3px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.art{height:150px}}
+
 </style>
 </head>
 <body>
@@ -89,12 +116,12 @@ body{background:radial-gradient(ellipse at 50% -15%,#10334b 0,transparent 48%),v
 <script>
 const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand();try{tg.setHeaderColor('#090909');tg.setBackgroundColor('#090909')}catch(e){}}
 const cards=[
-['Charizard EX','Dragon Series','🔥',1250,'LEGENDARY'],['Golden Pikachu','Electric Series','⚡',850,'POPULAR'],['Mewtwo Prime','Psychic Series','🌀',990,'RARE'],['Dark Dragonite','Shadow Series','🐉',760,'RARE'],['Eevee Gold','Classic Series','✨',450,'NEW'],['Lugia Legend','Ocean Series','🌊',1100,'LEGENDARY'],['Gengar Night','Shadow Series','👻',680,'RARE'],['Arcanine Gold','Fire Series','🦊',590,'POPULAR'],['Blastoise EX','Ocean Series','💧',920,'RARE'],['Venusaur Prime','Forest Series','🌿',720,'NEW'],['Umbreon Noir','Moon Series','🌙',880,'RARE'],['Rayquaza Gold','Sky Series','🐲',1450,'LEGENDARY']];
+['Charizard','Fire','🔥',4500,'LEGENDARY'],['Pikachu','Electric','⚡',2800,'POPULAR'],['Mewtwo','Psychic','🌀',5200,'RARE'],['Blastoise','Water','💧',3900,'RARE'],['Lugia','Sky','🌊',6300,'LEGENDARY'],['Gengar','Shadow','👻',3200,'RARE'],['Pikachu Golden','Electric','⚡',3500,'POPULAR'],['Charizard Golden','Fire','🔥',4500,'LEGENDARY'],['Mewtwo Golden','Psychic','🌀',5200,'RARE'],['Blastoise Golden','Water','💧',3900,'RARE'],['Lugia Golden','Sky','🌊',6300,'LEGENDARY'],['Gengar Golden','Shadow','👻',3200,'RARE']];
 for(let i=13;i<=40;i++){const base=cards[(i-13)%12];cards.push([base[0]+' #'+i,base[1],base[2],Math.max(350,base[3]+((i%5)-2)*45),i%4===0?'RARE':'COLLECTOR'])}
 let category='All';const cats=['All','Legendary','Rare','Popular','New'];
 function art(c){return '<div class="art"><span class="tag">'+c[4]+'</span><div class="cardart"><div class="shine"></div><div class="monster">'+c[2]+'</div><small>GOLDEN • '+String(c[0].split(' ')[0]).toUpperCase()+'</small></div></div>'}
 function cardHtml(c,i){return '<article class="card">'+art(c)+'<div class="cardbody"><h4>'+c[0]+'</h4><div class="sub">'+c[1]+'</div><div class="priceRow"><span class="price">৳'+c[3].toLocaleString('en-BD')+'</span><button class="buy" onclick="buyPreview(\''+c[0].replace(/'/g,"\\'")+'\', '+c[3]+')">VIEW</button></div></div></article>'}
-document.getElementById('featured').innerHTML=cards.slice(0,4).map(cardHtml).join('');
+document.getElementById('featured').innerHTML=[cards[1],cards[0],cards[2],cards[3],cards[4],cards[5]].map(cardHtml).join('');
 function renderFilters(){document.getElementById('filters').innerHTML=cats.map(c=>'<button class="filter '+(category===c?'active':'')+'" onclick="setCategory(\''+c+'\')">'+c+'</button>').join('')}
 function renderCatalog(){const filtered=category==='All'?cards:cards.filter(c=>c[4].toLowerCase()===category.toLowerCase());document.getElementById('catalog').innerHTML=filtered.map(cardHtml).join('')||'<div class="empty">No cards in this category.</div>'}
 function setCategory(c){category=c;renderFilters();renderCatalog()}
