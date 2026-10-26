@@ -3,12 +3,13 @@ const express = require('express');
 const { Telegraf, Markup } = require('telegraf');
 const { Pool } = require('pg');
 
-for (const key of ['BOT_TOKEN', 'DATABASE_URL', 'ADMIN_IDS']) {
+for (const key of ['BOT_TOKEN', 'ADMIN_IDS']) {
   if (!process.env[key]) { console.error('Missing environment variable: ' + key); process.exit(1); }
 }
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const admins = new Set(process.env.ADMIN_IDS.split(',').map(s => s.trim()).filter(Boolean));
-const pool = new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined });
+const hasDb = Boolean(process.env.DATABASE_URL);
+const pool = hasDb ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined }) : null;
 const app = express();
 const currency = process.env.CURRENCY || '৳';
 const money = n => currency + Number(n).toLocaleString('en-BD', { maximumFractionDigits: 2 });
@@ -51,15 +52,26 @@ async function setting(key) {
 }
 app.get('/', (_req, res) => res.send('Golden Card Market Telegram bot is running.'));
 app.get('/health', async (_req, res) => {
+  if (!hasDb) return res.json({ ok: true, mode: 'preview', database: 'not_configured' });
   try { await pool.query('SELECT 1'); res.json({ ok: true, database: 'connected' }); }
   catch (_e) { res.status(503).json({ ok: false, database: 'unavailable' }); }
 });
 
+bot.use(async (ctx, next) => {
+  if (hasDb) return next();
+  const text = ctx.message && ctx.message.text;
+  if (text && (text.startsWith('/start') || text.startsWith('/menu'))) return next();
+  if (ctx.callbackQuery) { await ctx.answerCbQuery('এটি Preview Mode। Database connect করলে সব ফিচার চালু হবে।').catch(() => {}); return; }
+  if (text) return ctx.reply('👀 Golden Card Market এখন Preview Mode-এ চলছে। Database connect না করা পর্যন্ত Card, Wallet, Deposit ও Admin data ফিচার বন্ধ থাকবে। পরে Database URL যোগ করে redeploy করুন।');
+  return next();
+});
+
 bot.start(async ctx => {
+  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\n\n✅ Telegram bot connection কাজ করছে।\n✅ Render service চালু আছে।\n\n🎴 Cards, Wallet, Deposit এবং Admin panel চালু করতে পরে PostgreSQL Database connect করতে হবে।', menu);
   await ensureUser(ctx);
   await ctx.reply('✨ Golden Card Market-এ স্বাগতম!\n\n🎴 কার্ড দেখুন, 💰 ওয়ালেট পরিচালনা করুন এবং ডিপোজিট জমা দিন।\n\nAdmin পেমেন্ট যাচাই করে Approve না করা পর্যন্ত ব্যালেন্স যোগ হবে না।', menu);
 });
-bot.command('menu', async ctx => { await ensureUser(ctx); await ctx.reply('Main menu:', menu); });
+bot.command('menu', async ctx => { if (hasDb) await ensureUser(ctx); await ctx.reply(hasDb ? 'Main menu:' : '👀 Preview Mode — Database connect করলে menu-এর সব feature কাজ করবে।', menu); });
 bot.command('admin', async ctx => {
   if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
   await ctx.reply('🔐 Admin Panel', adminMenu);
@@ -258,7 +270,8 @@ bot.on('photo', async ctx => {
 });
 bot.catch(err => console.error('Telegram bot error', err));
 (async () => {
-  await initDb();
+  if (hasDb) await initDb();
+  else console.log('Starting in preview mode: DATABASE_URL is not set');
   app.listen(Number(process.env.PORT || 3000), () => console.log('Health server listening'));
   await bot.launch();
   console.log('Golden Card Market bot started');
