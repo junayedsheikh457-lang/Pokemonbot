@@ -12,9 +12,11 @@ const hasDb = Boolean(process.env.DATABASE_URL);
 const pool = hasDb ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined }) : null;
 const app = express();
 const currency = process.env.CURRENCY || '৳';
+const miniAppUrl = process.env.MINI_APP_URL || 'https://pokemonbot-g5x1.onrender.com';
 const money = n => currency + Number(n).toLocaleString('en-BD', { maximumFractionDigits: 2 });
 const isAdmin = ctx => admins.has(String(ctx.from && ctx.from.id || ''));
 const menu = Markup.inlineKeyboard([
+  [Markup.button.webApp('✨ Open Golden Card Mini App', miniAppUrl)],
   [Markup.button.callback('🎴 Browse Cards', 'cards:0'), Markup.button.callback('💰 Wallet', 'wallet')],
   [Markup.button.callback('➕ Deposit', 'deposit'), Markup.button.callback('🗂 My Collection', 'collection')],
   [Markup.button.callback('ℹ️ Help', 'help')]
@@ -67,11 +69,12 @@ bot.use(async (ctx, next) => {
 });
 
 bot.start(async ctx => {
-  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\n\n✅ Telegram bot connection কাজ করছে।\n✅ Render service চালু আছে।\n\n🎴 Cards, Wallet, Deposit এবং Admin panel চালু করতে পরে PostgreSQL Database connect করতে হবে।', menu);
+  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\n\nPremium Black & Gold Mini App খুলতে নিচের বাটনে চাপ দিন।\n\nএটি এখন Demo UI—real wallet, payment ও purchase চালু করতে পরে PostgreSQL Database connect করতে হবে।', menu);
   await ensureUser(ctx);
   await ctx.reply('✨ Golden Card Market-এ স্বাগতম!\n\n🎴 কার্ড দেখুন, 💰 ওয়ালেট পরিচালনা করুন এবং ডিপোজিট জমা দিন।\n\nAdmin পেমেন্ট যাচাই করে Approve না করা পর্যন্ত ব্যালেন্স যোগ হবে না।', menu);
 });
 bot.command('menu', async ctx => { if (hasDb) await ensureUser(ctx); await ctx.reply(hasDb ? 'Main menu:' : '👀 Preview Mode — Database connect করলে menu-এর সব feature কাজ করবে।', menu); });
+bot.command('app', async ctx => { await ctx.reply('✨ Golden Card Market Mini App', menu); });
 bot.command('admin', async ctx => {
   if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
   await ctx.reply('🔐 Admin Panel', adminMenu);
