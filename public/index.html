@@ -93,14 +93,40 @@ body{padding:0 0 calc(76px + env(safe-area-inset-bottom));min-width:0}
 .cardart.realcard .monster,.cardart.realcard small{display:none}
 @media(max-width:430px){.cardart.realcard{width:95px;height:132px}}
 
+
+/* Reference-matched black & gold fantasy card artwork */
+:root{--bg:#02070a;--gold:#ffc83d;--gold2:#ffe18a;--line:#293b47;--muted:#b5c1ca;--white:#f4f6f8}
+body{background:radial-gradient(ellipse at 50% 0%,#182a30 0,transparent 38%),#02070a;color:#f4f6f8}
+.top{background:#04111a;border:1px solid #1d3442;border-radius:14px}
+.logo{background:radial-gradient(circle,#5c3d0c,#080e12);border-color:#ffcc4a}
+.brand h1{color:#ffd24c;letter-spacing:.8px}
+.hero{background:radial-gradient(ellipse at 78% 48%,#67450b 0,transparent 38%),linear-gradient(105deg,#030609,#101d21 60%,#151007);border-color:#9a7128;border-radius:14px}
+.hero:after{content:'🐉';font-size:100px;right:10px;top:25px;width:43%;height:145px;filter:drop-shadow(0 0 14px #eab22a);opacity:.92}
+.hero h2{color:#ffda69}.goldbtn,.buy{background:linear-gradient(100deg,#ffe16c,#efa91b);color:#181205}
+.card{background:linear-gradient(160deg,#0c1920,#050a0d);border-color:#2d414b;border-radius:12px}
+.art{background:radial-gradient(ellipse,#46320b,#10191c 58%,#020608);height:155px}
+.art:before{border-color:#d8a638;border-radius:7px}
+.cardart.fantasycard{width:88px;height:124px;position:relative;overflow:hidden;display:flex;flex-direction:column;align-items:center;justify-content:center;border:3px solid #e8bd43;border-radius:8px;background:radial-gradient(ellipse at 50% 35%,#9b6a0d 0,#30200a 40%,#05080a 80%);box-shadow:0 0 17px #f0b52630,0 5px 14px #000;transform:rotate(-3deg)}
+.fantasycard:before{content:'✧';position:absolute;inset:5px;border:1px solid #ffe18b;border-radius:4px;color:#ffdf76;font-size:18px;text-align:left;padding:3px}
+.fantasycard .shine{inset:3px;border:1px solid #fff0a060;z-index:1;pointer-events:none}
+.cardcrest{font-size:47px;line-height:1.1;filter:drop-shadow(0 0 9px #ffc32c);text-shadow:0 0 16px #ffb900}
+.fantasyname{font-size:7px;letter-spacing:1px;color:#ffe88c;font-weight:900;margin-top:9px;text-align:center;max-width:75px}
+.fantasystats{font-size:5px;color:#c9a54b;letter-spacing:1px;margin-top:4px}
+.tag{background:#03090de8;border-color:#d2a13c;color:#ffe08a}
+.cardbody h4{color:#f4f6f8}.price{color:#ffd75d}.sub{color:#a9bbc5}
+.walletbox{background:linear-gradient(120deg,#0c202a,#050b10);border-color:#a37b2d}
+.bottom{background:#030a0ef5;border-color:#263b46}
+.nav button.active{color:#ffe079;background:#201a0c}
+@media(min-width:760px){body{padding-left:0}.wrap{max-width:430px}.bottom{left:50%;right:auto;top:auto;bottom:0;width:100%;max-width:430px;transform:translateX(-50%);border-right:1px solid #263b46}.nav{display:grid;flex-direction:initial}.nav button{text-align:center;display:block;padding:7px 2px;font-size:10px}.nav button strong{font-size:20px;width:auto;margin:0 0 3px}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}.art{height:155px}}
+
 </style>
 </head>
 <body>
 <div class="wrap">
-<header class="top"><div class="brand"><div class="logo">♛</div><div><h1>POKÉMON</h1><small>CARD MARKET</small></div></div><div class="pill">✦ DEMO MODE</div></header>
+<header class="top"><div class="brand"><div class="logo">♛</div><div><h1>GOLDEN CARD</h1><small>COLLECT • TRADE • OWN</small></div></div><div class="pill">✦ DEMO MODE</div></header>
 <section id="home" class="page active">
-<div class="hero"><div class="eyebrow">Rare collection</div><h2>Rare Pokémon<br>Golden Cards</h2><p>Own the Legendary. Trade for More.</p><button class="goldbtn" onclick="go('market')">Explore Cards&nbsp; →</button></div>
-<div class="stats"><div class="stat"><b>40</b><span>Demo cards</span></div><div class="stat"><b>৳450</b><span>From</span></div><div class="stat"><b>24/7</b><span>Marketplace</span></div></div>
+<div class="hero"><div class="eyebrow">Rare collection</div><h2>Rare Golden<br>Legendary Cards</h2><p>Collect rare golden cards. Buy, sell and grow your collection.</p><button class="goldbtn" onclick="go('market')">Explore Cards&nbsp; →</button></div>
+<div class="stats"><div class="stat"><b>40</b><span>Golden cards</span></div><div class="stat"><b>৳450</b><span>From</span></div><div class="stat"><b>24/7</b><span>Marketplace</span></div></div>
 <div class="sectionhead"><h3>Featured Golden Cards</h3><button onclick="go('market')">View All →</button></div>
 <div class="grid" id="featured"></div>
 <div class="notice">✨ <b>Preview only:</b> এগুলো sample card ও demo price। এখনো কোনো real payment বা purchase হবে না। পরে database connect করে আসল catalog চালু করা যাবে।</div>
@@ -124,18 +150,12 @@ body{padding:0 0 calc(76px + env(safe-area-inset-bottom));min-width:0}
 <script>
 const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand();try{tg.setHeaderColor('#090909');tg.setBackgroundColor('#090909')}catch(e){}}
 const cards=[
-['Charizard','Fire','🔥',4500,'LEGENDARY'],['Pikachu','Electric','⚡',2800,'POPULAR'],['Mewtwo','Psychic','🌀',5200,'RARE'],['Blastoise','Water','💧',3900,'RARE'],['Lugia','Sky','🌊',6300,'LEGENDARY'],['Gengar','Shadow','👻',3200,'RARE'],['Pikachu Golden','Electric','⚡',3500,'POPULAR'],['Charizard Golden','Fire','🔥',4500,'LEGENDARY'],['Mewtwo Golden','Psychic','🌀',5200,'RARE'],['Blastoise Golden','Water','💧',3900,'RARE'],['Lugia Golden','Sky','🌊',6300,'LEGENDARY'],['Gengar Golden','Shadow','👻',3200,'RARE']];
+['Golden Dragon','Dragon','🐉',450,'LEGENDARY'],['Phoenix Guardian','Fire','🔥',700,'LEGENDARY'],['Storm Guardian','Storm','🌩️',1200,'EPIC'],['Solar Beast','Solar','🦁',1800,'EPIC'],['Shadow Wyrm','Shadow','🐲',2500,'RARE'],['Earth Titan','Earth','🪨',3200,'RARE']
+];
+for(let i=7;i<=40;i++){const base=cards[(i-7)%6];cards.push([base[0]+' '+(i<13?'II':i<19?'III':i<25?'IV':i<31?'V':'VI'),base[1],base[2],Math.max(450,base[3]+((i%5)-2)*50),i%4===0?'EPIC':base[4]])}
 for(let i=13;i<=40;i++){const base=cards[(i-13)%12];cards.push([base[0]+' #'+i,base[1],base[2],Math.max(350,base[3]+((i%5)-2)*45),i%4===0?'RARE':'COLLECTOR'])}
 let category='All';const cats=['All','Legendary','Rare','Popular','New'];
-const cardImages={
-'Charizard':'https://images.pokemontcg.io/base1/4.png',
-'Pikachu':'https://images.pokemontcg.io/base1/58.png',
-'Mewtwo':'https://images.pokemontcg.io/base1/10.png',
-'Blastoise':'https://images.pokemontcg.io/base1/2.png',
-'Lugia':'https://images.pokemontcg.io/neo1/9.png',
-'Gengar':'https://images.pokemontcg.io/fossil/5.png'
-};
-function art(c){const key=c[0].replace(' Golden','').replace(/ #\\d+$/,'');const src=cardImages[key];return '<div class="art"><span class="tag">'+c[4]+'</span><div class="cardart realcard"><div class="shine"></div>'+(src?'<img loading="lazy" src="'+src+'" alt="'+key+' Pokémon trading card" onerror="this.style.display=\'none\';this.parentElement.classList.add(\'fallback\');this.parentElement.insertAdjacentHTML(\'beforeend\',\'<div class=\\\'monster\\\'>✨</div><small>GOLDEN • '+key.toUpperCase()+'</small>\')">':'<div class="monster">'+c[2]+'</div><small>GOLDEN • '+key.toUpperCase()+'</small>')+'</div></div>'}
+function art(c){return '<div class="art"><span class="tag">'+c[4]+'</span><div class="cardart fantasycard"><div class="shine"></div><div class="cardcrest">'+c[2]+'</div><div class="fantasyname">'+c[0].split(' ').slice(0,2).join(' ').toUpperCase()+'</div><div class="fantasystats">✦ GOLD SERIES ✦</div></div></div>'}
 function cardHtml(c,i){return '<article class="card">'+art(c)+'<div class="cardbody"><h4>'+c[0]+'</h4><div class="sub">'+c[1]+'</div><div class="priceRow"><span class="price">৳'+c[3].toLocaleString('en-BD')+'</span><button class="buy" onclick="buyPreview(\''+c[0].replace(/'/g,"\\'")+'\', '+c[3]+')">VIEW</button></div></div></article>'}
 document.getElementById('featured').innerHTML=[cards[1],cards[0],cards[2],cards[3],cards[4],cards[5]].map(cardHtml).join('');
 function renderFilters(){document.getElementById('filters').innerHTML=cats.map(c=>'<button class="filter '+(category===c?'active':'')+'" onclick="setCategory(\''+c+'\')">'+c+'</button>').join('')}
