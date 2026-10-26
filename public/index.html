@@ -159,6 +159,18 @@ label{font-size:11px;color:#f5d77c}
 .empty{background:#08151d;border:1px solid #2a414f;border-radius:12px;padding:24px 14px;text-align:center;color:#c5d0d7;font-size:12px}
 @media(min-width:500px){.wrap{max-width:430px}.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 
+
+/* Exact six-card reference catalog + detailed mobile screens */
+:root{--gold:#ffc83d;--gold2:#ffe18a}
+.hero{min-height:195px;background:radial-gradient(ellipse at 85% 40%,#6d490b 0,transparent 38%),linear-gradient(115deg,#020609,#101b20 58%,#211604)}
+.hero h2{max-width:245px;font-size:27px}.hero p{max-width:245px}
+.hero:after{content:'🐉';font-size:77px;right:2px;top:38px;width:36%;filter:drop-shadow(0 0 13px #ffc83d)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:12px 0 19px}.stat{padding:10px 7px}.stat b{font-size:16px}.stat span{font-size:9px}
+.grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.art{height:166px;background:radial-gradient(ellipse,var(--c1) 0,#161b1b 36%,var(--c2) 75%,#020608);}
+.cardart.fantasycard{width:95px;height:135px;background:radial-gradient(ellipse at 50% 30%,var(--c1),var(--c2) 66%,#050607);border-color:var(--c1);box-shadow:0 0 15px color-mix(in srgb,var(--c1),transparent 65%),0 6px 15px #000}
+.fantasycard:before{border-color:var(--c3);color:var(--c3)}.cardcrest{color:var(--c3);font-size:44px;text-shadow:0 0 15px var(--c1)}.fantasyname{color:var(--c3);font-size:6px;letter-spacing:.7px;max-width:78px}.fantasystats{color:var(--c3);font-size:5px}.cardserial{font-size:5px;color:var(--c3);position:absolute;bottom:4px;right:5px}
+.cardbody{padding:9px}.cardbody h4{font-size:12px;min-height:26px}.sub{font-size:9px}.priceRow{display:block;margin-top:8px}.price{display:block;font-size:14px;margin-bottom:7px}.buy{width:100%;font-size:10px;padding:9px 3px}
+.detail-art{border:1px solid #876323;border-radius:12px;padding:16px 10px;background:radial-gradient(ellipse,#62430e,#08131a 70%);display:flex;justify-content:center;margin-bottom:14px}.detail-art .art{width:100%;max-width:260px;height:270px;border-radius:10px}.detail-art .cardart.fantasycard{width:165px;height:230px}.detail-art .cardcrest{font-size:75px}.detail-art .fantasyname{font-size:10px;max-width:130px}.detail-art .fantasystats{font-size:8px}.detail-title{display:flex;justify-content:space-between;align-items:start;gap:8px}.detail-title h2{font-size:19px;margin:0 0 6px}.detail-title strong{color:#ffe16c;font-size:18px;white-space:nowrap}.rarity{color:#ffda5e;font-size:11px}.detail-desc{font-size:12px;line-height:1.6;color:#d4dce0}.power-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:13px 0}.power-grid div{border:1px solid #294451;border-radius:9px;padding:10px;text-align:center;background:#071620}.power-grid small,.power-grid b{display:block}.power-grid small{font-size:9px;color:#aebbc4;margin:5px}.power-grid b{color:#ffd75d}.meta-grid{border:1px solid #294451;border-radius:9px;padding:11px;display:grid;gap:9px;font-size:11px}.meta-grid div{display:flex;justify-content:space-between;gap:8px}.meta-grid b{color:#ffe18a;text-align:right}.wide{width:100%;margin-top:14px}
 </style>
 </head>
 <body>
@@ -166,7 +178,7 @@ label{font-size:11px;color:#f5d77c}
 <header class="top"><div class="brand"><div class="logo">♛</div><div><h1>GOLDEN CARD</h1><small>COLLECT • TRADE • OWN</small></div></div><div class="pill">✦ DEMO MODE</div></header>
 <section id="home" class="page active">
 <div class="hero"><div class="eyebrow">Rare collection</div><h2>Rare Golden<br>Legendary Cards</h2><p>Collect rare golden cards. Buy, sell and grow your collection.</p><button class="goldbtn" onclick="go('market')">Explore Cards&nbsp; →</button></div>
-<div class="stats"><div class="stat"><b>40</b><span>Golden cards</span></div><div class="stat"><b>৳450</b><span>From</span></div><div class="stat"><b>24/7</b><span>Marketplace</span></div></div>
+<div class="stats"><div class="stat"><b>6</b><span>Golden cards</span></div><div class="stat"><b>৳450</b><span>Starting price</span></div><div class="stat"><b>Demo</b><span>Marketplace</span></div></div>
 <div class="sectionhead"><h3>Featured Golden Cards</h3><button onclick="go('market')">View All →</button></div>
 <div class="grid" id="featured"></div>
 <div class="notice">✨ <b>Preview only:</b> এগুলো sample card ও demo price। এখনো কোনো real payment বা purchase হবে না। পরে database connect করে আসল catalog চালু করা যাবে।</div>
@@ -181,7 +193,7 @@ label{font-size:11px;color:#f5d77c}
 <section id="support" class="page"><div class="sectionhead"><h3>Support</h3></div><div class="empty">Need help with cards or payments?<br><br><button class="goldbtn" onclick="modal('Support','Support chat will be connected later.')">Contact Support</button></div></section>
 
 <section id="market" class="page">
-<div class="sectionhead"><h3>Golden Cards</h3><span class="pill">40 ITEMS</span></div><div class="filters" id="filters"></div><div class="grid" id="catalog"></div>
+<div class="sectionhead"><h3>Golden Cards</h3><span class="pill">6 CARDS</span></div><div class="filters" id="filters"></div><div class="grid" id="catalog"></div>
 </section>
 <section id="wallet" class="page">
 <div class="sectionhead"><h3>My Wallet</h3><span class="pill">DEMO</span></div>
@@ -199,19 +211,23 @@ label{font-size:11px;color:#f5d77c}
 <script>
 const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand();try{tg.setHeaderColor('#090909');tg.setBackgroundColor('#090909')}catch(e){}}
 const cards=[
-['Golden Dragon','Dragon','🐉',450,'LEGENDARY'],['Phoenix Guardian','Fire','🔥',700,'LEGENDARY'],['Storm Guardian','Storm','🌩️',1200,'EPIC'],['Solar Beast','Solar','🦁',1800,'EPIC'],['Shadow Wyrm','Shadow','🐲',2500,'RARE'],['Earth Titan','Earth','🪨',3200,'RARE']
+['Golden Dragon','Dragon','🐉',450,'LEGENDARY','A legendary golden dragon said to bring fortune and strength to its owner.','120','100','90'],
+['Phoenix Guardian','Fire','🔥',700,'LEGENDARY','A reborn fire guardian with blazing wings and fearless power.','115','85','110'],
+['Storm Guardian','Storm','⚡',1200,'EPIC','A storm-born protector that commands thunder and lightning.','105','95','125'],
+['Solar Beast','Solar','🦁',1800,'EPIC','A radiant beast powered by the energy of the golden sun.','130','110','95'],
+['Shadow Wyrm','Shadow','🐲',2500,'RARE','A mysterious shadow wyrm hidden in the darkness of ancient ruins.','140','90','115'],
+['Earth Titan','Earth','🪨',3200,'RARE','An ancient titan forged from stone, earth and golden minerals.','125','145','65']
 ];
-for(let i=7;i<=40;i++){const base=cards[(i-7)%6];cards.push([base[0]+' '+(i<13?'II':i<19?'III':i<25?'IV':i<31?'V':'VI'),base[1],base[2],Math.max(450,base[3]+((i%5)-2)*50),i%4===0?'EPIC':base[4]])}
-for(let i=13;i<=40;i++){const base=cards[(i-13)%12];cards.push([base[0]+' #'+i,base[1],base[2],Math.max(350,base[3]+((i%5)-2)*45),i%4===0?'RARE':'COLLECTOR'])}
-let category='All';const cats=['All','Legendary','Rare','Popular','New'];
-function art(c){return '<div class="art"><span class="tag">'+c[4]+'</span><div class="cardart fantasycard"><div class="shine"></div><div class="cardcrest">'+c[2]+'</div><div class="fantasyname">'+c[0].split(' ').slice(0,2).join(' ').toUpperCase()+'</div><div class="fantasystats">✦ GOLD SERIES ✦</div></div></div>'}
-function cardHtml(c,i){return '<article class="card">'+art(c)+'<div class="cardbody"><h4>'+c[0]+'</h4><div class="sub">'+c[1]+'</div><div class="priceRow"><span class="price">৳'+c[3].toLocaleString('en-BD')+'</span><button class="buy" onclick="buyPreview(\''+c[0].replace(/'/g,"\\'")+'\', '+c[3]+')">VIEW</button></div></div></article>'}
+let category='All';const cats=['All','Legendary','Epic','Rare'];let category='All';const cats=['All','Legendary','Rare','Popular','New'];
+function art(c){const palettes={'Golden Dragon':['#f7c548','#4e2308','#ffed9a'],'Phoenix Guardian':['#ff8a22','#5c1408','#ffe2a0'],'Storm Guardian':['#5cc9ff','#092c52','#d8f3ff'],'Solar Beast':['#f5b51b','#4a2706','#fff1a2'],'Shadow Wyrm':['#a47bff','#210c42','#e8d8ff'],'Earth Titan':['#a7b779','#26351a','#f0e7b1']};const p=palettes[c[0]]||palettes['Golden Dragon'];return '<div class="art art-'+c[0].toLowerCase().replace(/[^a-z]+/g,'-')+'" style="--c1:'+p[0]+';--c2:'+p[1]+';--c3:'+p[2]+'"><span class="tag">'+c[4]+'</span><div class="cardart fantasycard"><div class="shine"></div><div class="cardcrest">'+c[2]+'</div><div class="fantasyname">'+c[0].toUpperCase()+'</div><div class="fantasystats">✦ GOLD SERIES ✦</div><div class="cardserial">✧ GC • 0'+(cards.indexOf(c)+1)+'</div></div></div>'}
+function cardHtml(c,i){return '<article class="card">'+art(c)+'<div class="cardbody"><h4>'+c[0]+'</h4><div class="sub">✦ '+c[4].charAt(0)+c[4].slice(1).toLowerCase()+'</div><div class="priceRow"><span class="price">৳ '+c[3].toLocaleString('en-BD')+'</span><button class="buy" onclick="openDetails('+cards.indexOf(c)+')">Buy Card</button></div></div></article>'}
 document.getElementById('featured').innerHTML=[cards[1],cards[0],cards[2],cards[3],cards[4],cards[5]].map(cardHtml).join('');
 function renderFilters(){document.getElementById('filters').innerHTML=cats.map(c=>'<button class="filter '+(category===c?'active':'')+'" onclick="setCategory(\''+c+'\')">'+c+'</button>').join('')}
 function renderCatalog(){const filtered=category==='All'?cards:cards.filter(c=>c[4].toLowerCase()===category.toLowerCase());document.getElementById('catalog').innerHTML=filtered.map(cardHtml).join('')||'<div class="empty">No cards in this category.</div>'}
 function setCategory(c){category=c;renderFilters();renderCatalog()}
 function go(page){document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===page));document.querySelectorAll('[data-page]').forEach(b=>b.classList.toggle('active',b.dataset.page===page));window.scrollTo({top:0,behavior:'smooth'});if(tg)tg.HapticFeedback?.selectionChanged()}
-function buyPreview(name,price){modal(name+' · ৳'+price.toLocaleString('en-BD'),'এটি Demo UI। এখন কোনো টাকা কাটা বা কার্ড কেনা হবে না। Database connect এবং Admin catalog setup হলে purchase feature চালু হবে।')}
+function buyPreview(name,price){modal(name+' · ৳'+price.toLocaleString('en-BD'),'এটি Demo UI। এখন কোনো টাকা কাটা বা কার্ড কেনা হবে না। Database connect হলে আসল purchase চালু হবে।')}
+function openDetails(i){const x=cards[i];document.getElementById('detailcontent').innerHTML='<div class="detail-art">'+art(x)+'</div><div class="detail-title"><div><h2>'+x[0]+'</h2><span class="rarity">♛ '+x[4]+'</span></div><strong>৳ '+x[3].toLocaleString('en-BD')+'</strong></div><p class="detail-desc">'+x[5]+'</p><div class="power-grid"><div>🔥<small>Power</small><b>'+x[6]+'</b></div><div>🛡️<small>Defense</small><b>'+x[7]+'</b></div><div>⚡<small>Speed</small><b>'+x[8]+'</b></div></div><div class="meta-grid"><div>✦ Type <b>'+x[1]+'</b></div><div>♛ Rarity <b>'+x[4]+'</b></div><div>✧ Edition <b>Gold Series</b></div></div><button class="goldbtn wide" onclick="buyPreview(\''+x[0]+'\', '+x[3]+')">🛒 Buy Card · ৳'+x[3].toLocaleString('en-BD')+'</button>';go('details')}
 function modal(title,msg){document.getElementById('mtitle').textContent=title;document.getElementById('mtext').textContent=msg;document.getElementById('modalback').style.display='flex'}
 function closeModal(){document.getElementById('modalback').style.display='none'}
 renderFilters();renderCatalog();
