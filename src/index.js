@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const { Telegraf, Markup } = require('telegraf');
 const { Pool } = require('pg');
 
@@ -52,7 +53,8 @@ async function setting(key) {
   const r = await pool.query('SELECT value FROM app_settings WHERE key=$1', [key]);
   return r.rows[0] ? r.rows[0].value : '';
 }
-app.get('/', (_req, res) => res.send('Golden Card Market Telegram bot is running.'));
+app.use(express.static(path.join(__dirname, '..', 'public')));
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 app.get('/health', async (_req, res) => {
   if (!hasDb) return res.json({ ok: true, mode: 'preview', database: 'not_configured' });
   try { await pool.query('SELECT 1'); res.json({ ok: true, database: 'connected' }); }
