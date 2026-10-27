@@ -291,7 +291,7 @@ app.post('/api/admin/deposits/:id/:action',apiAuth,apiAdmin,async(req,res)=>{
       await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'deposit',$2,$3)",[d.telegram_id,d.amount,'Deposit #'+d.id+' USDT approved']);
     }
     await client.query('COMMIT');
-    bot.telegram.sendMessage(String(d.telegram_id),action==='approve'?'🎉 Your '+money(d.amount)+' deposit approved. Your wallet has been updated.':'Your Deposit #'+d.id+' was rejected. Please verify your payment details with support.').catch(()=>{});
+    bot.telegram.sendMessage(String(d.telegram_id),action==='approve'?'🎉 Your deposit of '+money(d.amount)+' has been approved. Your wallet has been updated.':'Your Deposit #'+d.id+' was rejected. Please verify your payment details with support.').catch(()=>{});
     res.json({ok:true,status});
   } catch(e) { await client.query('ROLLBACK').catch(()=>{}); console.error(e); res.status(500).json({error:'Could not process deposit.'}); }
   finally { client.release(); }
@@ -429,7 +429,7 @@ bot.action(/^sellcard:(\d+)$/, async ctx => {
   if (!r.rows.length) return ctx.reply('This card is not in your collection.');
   if (r.rows[0].listed_for_sale) {
     await pool.query('UPDATE cards SET listed_for_sale=FALSE,listing_price=NULL WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
-    return ctx.reply('✅ ' + r.rows[0].title + ' 's sale listing has been cancelled.', menu);
+    return ctx.reply('✅ The sale listing for ' + r.rows[0].title + ' has been cancelled.', menu);
   }
   await setState(ctx.from.id, 'sell_price', { cardId: Number(ctx.match[1]), title: r.rows[0].title });
   await ctx.reply('💸 ' + r.rows[0].title + ' What price would you like to sell it for? Enter the amount only.');
@@ -442,7 +442,7 @@ bot.action('collection', async ctx => {
 bot.action('transactions', async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT type,amount,details FROM transactions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 10', [String(ctx.from.id)]);
-  await ctx.reply(r.rows.length ? '📜 লেনদেন:\n' + r.rows.map(t => t.type + ': ' + money(t.amount) + ' — ' + t.details).join('\n') : 'No completed transactions yet.');
+  await ctx.reply(r.rows.length ? '📜 Transaction History:\n' + r.rows.map(t => t.type + ': ' + money(t.amount) + ' — ' + t.details).join('\n') : 'No completed transactions yet.');
 });
 bot.action('help', async ctx => {
   await ctx.answerCbQuery();
@@ -484,7 +484,7 @@ bot.action('admin:addcard', async ctx => {
 bot.action('admin:settings', async ctx => {
   await ctx.answerCbQuery();
   if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
-  await ctx.reply('নম্বর সেট করুন:\n/setbkash 01XXXXXXXXX\n/setnagad 01XXXXXXXXX');
+  await ctx.reply('Configure payment numbers:\n/setbkash 01XXXXXXXXX\n/setnagad 01XXXXXXXXX');
 });
 bot.action('referral',async ctx=>{
   await ctx.answerCbQuery();
@@ -598,9 +598,9 @@ bot.on('text', async ctx => {
     const price = Number(value);
     if (!Number.isFinite(price) || price <= 0 || price > 10000000) return ctx.reply('Enter a valid sale price.');
     const r = await pool.query('UPDATE cards SET listed_for_sale=TRUE,listing_price=$1 WHERE id=$2 AND owner_id=$3 RETURNING title', [price, st.data.cardId, String(ctx.from.id)]);
-    if (!r.rows.length) { await clearState(ctx.from.id); return ctx.reply('কার্ডটি আর Your Collection-এ নেই।'); }
+    if (!r.rows.length) { await clearState(ctx.from.id); return ctx.reply('This card is no longer in your collection.'); }
     await clearState(ctx.from.id);
-    return ctx.reply('✅ ' + r.rows[0].title + ' ' + money(price) + ' has been listed on the marketplace for ', menu);
+    return ctx.reply('✅ ' + r.rows[0].title + ' has been listed on the marketplace for ' + money(price) + '.', menu);
   }
   if (st.state === 'card_title' && isAdmin(ctx)) {
     await setState(ctx.from.id, 'card_price', { title: value });
@@ -628,7 +628,7 @@ bot.on('photo',async ctx=>{
   }
   if(!st||st.state!=='card_photo'||!isAdmin(ctx))return;
   const r=await pool.query('INSERT INTO cards(title,price,image_file_id) VALUES($1,$2,$3) RETURNING id',[st.data.title,st.data.price,fileId]);
-  await clearState(ctx.from.id);await ctx.reply('✅ Card #'+r.rows[0].id+' has been added to the wallet.',adminMenu);
+  await clearState(ctx.from.id);await ctx.reply('✅ Card #'+r.rows[0].id+' has been added successfully.',adminMenu);
 });
 
 bot.catch(err => console.error('Telegram bot error', err));
