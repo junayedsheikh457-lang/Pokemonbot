@@ -418,12 +418,16 @@ bot.use(async (ctx, next) => {
   return next();
 });
 
+const startMenu = Markup.inlineKeyboard([
+  [Markup.button.webApp('🌐 Open Golden Card Market', miniAppUrl)]
+]);
 bot.start(async ctx => {
-  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\\n\\nTap the button below to open the premium black-and-gold Mini App.', menu);
-  await ensureUser(ctx);
-  const m=String(ctx.startPayload||'').match(/^ref_(\\d{1,20})$/);
-  if(m&&m[1]!==String(ctx.from.id)) await pool.query('UPDATE users SET referred_by=$1 WHERE telegram_id=$2 AND referred_by IS NULL',[m[1],String(ctx.from.id)]);
-  await ctx.reply('✨ Welcome to Golden Card Market!\\n\\n🎴 Marketplace • 💰 USDT Wallet • 👥 Refer & Earn • 🪪 KYC Verification',menu);
+  if (hasDb) {
+    await ensureUser(ctx);
+    const m=String(ctx.startPayload||'').match(/^ref_(\d{1,20})$/);
+    if(m&&m[1]!==String(ctx.from.id)) await pool.query('UPDATE users SET referred_by=$1 WHERE telegram_id=$2 AND referred_by IS NULL',[m[1],String(ctx.from.id)]);
+  }
+  await ctx.reply('✨ Welcome to Golden Card Market!', startMenu);
 });
 bot.command('menu', async ctx => { if (hasDb) await ensureUser(ctx); await ctx.reply(hasDb ? 'Main menu:' : '👀 Preview Mode — Connect a database to enable all menu features.', menu); });
 bot.command('app', async ctx => { await ctx.reply('✨ Golden Card Market Mini App', menu); });
