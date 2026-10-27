@@ -15,6 +15,7 @@ const pool = hasDb ? new Pool({ connectionString: process.env.DATABASE_URL, ssl:
 const app = express();
 const currency = '$';
 const miniAppUrl = process.env.MINI_APP_URL || 'https://pokemonbot-g5x1.onrender.com';
+let botUsername = process.env.BOT_USERNAME || '';
 const money = n => currency + Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 const isAdmin = ctx => admins.has(String(ctx.from && ctx.from.id || ''));
 const menu = Markup.inlineKeyboard([
@@ -22,18 +23,24 @@ const menu = Markup.inlineKeyboard([
   [Markup.button.callback('🎴 Browse Cards', 'cards:0'), Markup.button.callback('💰 Wallet', 'wallet')],
   [Markup.button.callback('➕ Deposit', 'deposit'), Markup.button.callback('🗂 My Collection', 'collection')],
   [Markup.button.callback('💸 Sell Cards', 'sell')],
+  [Markup.button.callback('👥 Refer & Earn', 'referral'), Markup.button.callback('🪪 KYC Verify', 'kyc:start')],
   [Markup.button.callback('ℹ️ Help', 'help')]
 ]);
 const adminMenu = Markup.inlineKeyboard([
   [Markup.button.callback('⏳ Pending Deposits', 'admin:pending')],
   [Markup.button.callback('➕ Add Card', 'admin:addcard')],
-  [Markup.button.callback('⚙️ Payment Settings', 'admin:settings')]
+  [Markup.button.callback('⚙️ Payment Settings', 'admin:settings')],
+  [Markup.button.callback('🪪 KYC Reviews', 'admin:kyc')]
 ]);
 async function initDb() {
   await pool.query('CREATE TABLE IF NOT EXISTS users (telegram_id BIGINT PRIMARY KEY, username TEXT, balance NUMERIC(12,2) NOT NULL DEFAULT 0)');
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by BIGINT');
+  await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS first_fast_buy_done BOOLEAN NOT NULL DEFAULT FALSE');
   await pool.query("CREATE TABLE IF NOT EXISTS cards (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, price NUMERIC(12,2) NOT NULL CHECK(price >= 0), image_file_id TEXT, active BOOLEAN NOT NULL DEFAULT TRUE, owner_id BIGINT)");
   await pool.query("CREATE TABLE IF NOT EXISTS deposits (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), amount NUMERIC(12,2) NOT NULL CHECK(amount > 0), method TEXT NOT NULL, transaction_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query('ALTER TABLE deposits ADD COLUMN IF NOT EXISTS review_due_at TIMESTAMPTZ');
+  await pool.query("CREATE TABLE IF NOT EXISTS referral_commissions (id BIGSERIAL PRIMARY KEY, referrer_id BIGINT NOT NULL REFERENCES users(telegram_id), referred_user_id BIGINT NOT NULL UNIQUE REFERENCES users(telegram_id), card_id BIGINT NOT NULL, purchase_amount NUMERIC(12,2) NOT NULL, commission_amount NUMERIC(12,2) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await pool.query("CREATE TABLE IF NOT EXISTS kyc_submissions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), front_file_id TEXT NOT NULL, back_file_id TEXT NOT NULL, selfie_file_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), type TEXT NOT NULL, amount NUMERIC(12,2) NOT NULL, details TEXT DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS user_states (telegram_id BIGINT PRIMARY KEY, state TEXT NOT NULL, data JSONB NOT NULL DEFAULT '{}'::jsonb)");
   await pool.query('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -130,9 +137,13 @@ function apiAdmin(req,res,next) {
   next();
 }
 const publicCard = c => ({id:Number(c.id),title:c.title,price:Number(c.listing_price ?? c.price),originalPrice:Number(c.price),image:c.image_file_id || null,description:c.description || '',active:c.active,ownerId:c.owner_id ? String(c.owner_id) : null,listedForSale:Boolean(c.listed_for_sale)});
+app.get('/api/referrals',apiAuth,async(req,res)=>{
+  const [u,c]=await Promise.all([pool.query('SELECT COUNT(*)::int AS count FROM users WHERE referred_by=$1',[req.tgUser.id]),pool.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(commission_amount),0)::numeric AS total FROM referral_commissions WHERE referrer_id=$1',[req.tgUser.id])]);
+  res.json({referralLink:botUsername?'https://t.me/'+botUsername+'?start=ref_'+req.tgUser.id:'',invited:u.rows[0].count,commissionCount:c.rows[0].count,earned:Number(c.rows[0].total)});
+});
 app.get('/api/config', async (_req,res) => {
   if (!hasDb) return res.json({mode:'preview',database:false,payments:{networks:{}}});
-  try { const entries=await Promise.all(["trc20","erc20","bep20","polygon","arbitrum","optimism","solana","ton","avalanche","base"].map(async k=>[k,await setting('usdt_'+k)])); res.json({mode:'live',database:true,payments:{networks:Object.fromEntries(entries)}}); }
+  try { const entries=await Promise.all(["trc20","erc20","bep20","polygon","arbitrum","optimism","solana","ton","avalanche","base"].map(async k=>[k,await setting('usdt_'+k)])); res.json({mode:'live',database:true,botUsername,payments:{networks:Object.fromEntries(entries)}}); }
   catch(e) { res.status(500).json({error:'Unable to load settings.'}); }
 });
 app.get('/api/me',apiAuth,async(req,res)=>{
@@ -289,9 +300,11 @@ bot.use(async (ctx, next) => {
 });
 
 bot.start(async ctx => {
-  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\n\nPremium Black & Gold Mini App খুলতে নিচের বাটনে চাপ দিন।\n\nএটি এখন Demo UI—real wallet, payment ও purchase চালু করতে পরে PostgreSQL Database connect করতে হবে।', menu);
+  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\\n\\nPremium Black & Gold Mini App খুলতে নিচের বাটনে চাপ দিন।', menu);
   await ensureUser(ctx);
-  await ctx.reply('✨ Golden Card Market-এ স্বাগতম!\n\n🎴 কার্ড দেখুন, 💰 ওয়ালেট পরিচালনা করুন এবং ডিপোজিট জমা দিন।\n\nAdmin পেমেন্ট যাচাই করে Approve না করা পর্যন্ত ব্যালেন্স যোগ হবে না।', menu);
+  const m=String(ctx.startPayload||'').match(/^ref_(\\d{1,20})$/);
+  if(m&&m[1]!==String(ctx.from.id)) await pool.query('UPDATE users SET referred_by=$1 WHERE telegram_id=$2 AND referred_by IS NULL',[m[1],String(ctx.from.id)]);
+  await ctx.reply('✨ Golden Card Market-এ স্বাগতম!\\n\\n🎴 Market • 💰 USDT Wallet • 👥 Refer & Earn • 🪪 KYC Verification',menu);
 });
 bot.command('menu', async ctx => { if (hasDb) await ensureUser(ctx); await ctx.reply(hasDb ? 'Main menu:' : '👀 Preview Mode — Database connect করলে menu-এর সব feature কাজ করবে।', menu); });
 bot.command('app', async ctx => { await ctx.reply('✨ Golden Card Market Mini App', menu); });
@@ -416,6 +429,31 @@ bot.action('admin:settings', async ctx => {
   if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
   await ctx.reply('নম্বর সেট করুন:\n/setbkash 01XXXXXXXXX\n/setnagad 01XXXXXXXXX');
 });
+bot.action('referral',async ctx=>{
+  await ctx.answerCbQuery();
+  if(!hasDb)return ctx.reply('Referral feature চালাতে database দরকার।');
+  const username=botUsername||((await bot.telegram.getMe()).username),link='https://t.me/'+username+'?start=ref_'+ctx.from.id;
+  const [u,c]=await Promise.all([pool.query('SELECT COUNT(*)::int AS invited FROM users WHERE referred_by=$1',[String(ctx.from.id)]),pool.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(commission_amount),0)::numeric AS earned FROM referral_commissions WHERE referrer_id=$1',[String(ctx.from.id)])]);
+  return ctx.reply('👥 GOLDEN REFER & EARN\\n\\nYour invite link:\\n'+link+'\\n\\nInvited: '+u.rows[0].invited+'\\nFirst Fast Buys: '+c.rows[0].count+'\\nEarned: '+money(c.rows[0].earned)+'\\n\\n10% commission applies only to each referred user’s first Fast Buy.',Markup.inlineKeyboard([[Markup.button.callback('🪪 Start KYC','kyc:start')],[Markup.button.webApp('Open Mini App',miniAppUrl)]]));
+});
+bot.action('kyc:start',async ctx=>{
+  await ctx.answerCbQuery();if(!hasDb)return ctx.reply('KYC চালাতে database দরকার।');await ensureUser(ctx);await setState(ctx.from.id,'kyc_front',{});
+  return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/3: Send a clear photo of the FRONT of your own NID or passport. Then send the back, followed by a selfie holding the same ID.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
+});
+bot.action('admin:kyc',async ctx=>{
+  await ctx.answerCbQuery();if(!isAdmin(ctx))return ctx.reply('⛔ Admin access নেই।');
+  const r=await pool.query("SELECT id,telegram_id,created_at FROM kyc_submissions WHERE status='pending' ORDER BY id LIMIT 20");
+  if(!r.rows.length)return ctx.reply('Pending KYC নেই.');
+  for(const k of r.rows)await ctx.reply('🪪 KYC #'+k.id+'\\nUser: '+k.telegram_id+'\\nSubmitted: '+new Date(k.created_at).toLocaleString(),Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','kyc:approve:'+k.id),Markup.button.callback('❌ Reject','kyc:reject:'+k.id)]]));
+});
+bot.action(/^kyc:(approve|reject):(\\d+)$/,async ctx=>{
+  await ctx.answerCbQuery();if(!isAdmin(ctx))return ctx.reply('⛔ Admin access নেই।');
+  const status=ctx.match[1]==='approve'?'approved':'rejected';
+  const r=await pool.query("UPDATE kyc_submissions SET status=$1,reviewed_by=$2,reviewed_at=NOW() WHERE id=$3 AND status='pending' RETURNING telegram_id",[status,String(ctx.from.id),ctx.match[2]]);
+  if(!r.rows.length)return ctx.reply('KYC request already processed or not found.');
+  await bot.telegram.sendMessage(String(r.rows[0].telegram_id),status==='approved'?'✅ Your KYC has been approved.':'KYC review rejected. Contact support if needed.').catch(()=>{});
+  return ctx.reply('KYC '+status+'.');
+});
 bot.action('admin:pending', async ctx => {
   await ctx.answerCbQuery();
   if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
@@ -512,15 +550,24 @@ bot.on('text', async ctx => {
     return ctx.reply('এবার কার্ডের ছবি Photo হিসেবে পাঠান।');
   }
 });
-bot.on('photo', async ctx => {
-  const st = await getState(ctx.from.id);
-  if (!st || st.state !== 'card_photo' || !isAdmin(ctx)) return;
-  const photos = ctx.message.photo;
-  const fileId = photos[photos.length - 1].file_id;
-  const r = await pool.query('INSERT INTO cards(title,price,image_file_id) VALUES($1,$2,$3) RETURNING id', [st.data.title, st.data.price, fileId]);
-  await clearState(ctx.from.id);
-  await ctx.reply('✅ Card #' + r.rows[0].id + ' যোগ হয়েছে।', adminMenu);
+bot.on('photo',async ctx=>{
+  if(!hasDb)return;
+  const st=await getState(ctx.from.id),photos=ctx.message.photo,fileId=photos[photos.length-1].file_id;
+  if(st&&['kyc_front','kyc_back','kyc_selfie'].includes(st.state)){
+    if(st.state==='kyc_front'){await setState(ctx.from.id,'kyc_back',{front:fileId});return ctx.reply('Front received. Send the BACK of the same ID.');}
+    if(st.state==='kyc_back'){await setState(ctx.from.id,'kyc_selfie',{front:st.data.front,back:fileId});return ctx.reply('Back received. Send a selfie holding the same ID clearly beside your face.');}
+    try{
+      const r=await pool.query("INSERT INTO kyc_submissions(telegram_id,front_file_id,back_file_id,selfie_file_id) VALUES($1,$2,$3,$4) RETURNING id",[String(ctx.from.id),st.data.front,st.data.back,fileId]);
+      await clearState(ctx.from.id);await ctx.reply('✅ KYC submitted. Admin will review your photos.');
+      for(const adminId of admins){await bot.telegram.sendPhoto(adminId,st.data.front,{caption:'KYC #'+r.rows[0].id+' FRONT · User '+ctx.from.id}).catch(()=>{});await bot.telegram.sendPhoto(adminId,st.data.back,{caption:'KYC #'+r.rows[0].id+' BACK · User '+ctx.from.id}).catch(()=>{});await bot.telegram.sendPhoto(adminId,fileId,{caption:'KYC #'+r.rows[0].id+' SELFIE HOLDING ID · User '+ctx.from.id,reply_markup:{inline_keyboard:[[{text:'Approve',callback_data:'kyc:approve:'+r.rows[0].id},{text:'Reject',callback_data:'kyc:reject:'+r.rows[0].id}]]}}).catch(()=>{});}
+    }catch(e){console.error('KYC submit failed',e);return ctx.reply('KYC submission failed. Please try again.');}
+    return;
+  }
+  if(!st||st.state!=='card_photo'||!isAdmin(ctx))return;
+  const r=await pool.query('INSERT INTO cards(title,price,image_file_id) VALUES($1,$2,$3) RETURNING id',[st.data.title,st.data.price,fileId]);
+  await clearState(ctx.from.id);await ctx.reply('✅ Card #'+r.rows[0].id+' যোগ হয়েছে।',adminMenu);
 });
+
 bot.catch(err => console.error('Telegram bot error', err));
 const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || crypto.createHash('sha256').update(process.env.BOT_TOKEN).digest('hex').slice(0, 32);
 const webhookPath = '/telegram-webhook/' + webhookSecret;
@@ -529,6 +576,7 @@ app.use(bot.webhookCallback(webhookPath, { secretToken: webhookSecret }));
   if (hasDb) await initDb();
   else console.log('Starting in preview mode: DATABASE_URL is not set');
   app.listen(Number(process.env.PORT || 3000), () => console.log('Health server listening; Telegram webhook route ready at ' + webhookPath));
+  try { botUsername=(await bot.telegram.getMe()).username||botUsername; } catch(e) { console.error('Could not read bot username',e.message); }
   await bot.telegram.setWebhook(miniAppUrl + webhookPath, { secret_token: webhookSecret, drop_pending_updates: false });
   console.log('Golden Card Market bot started (webhook mode)');
 })().catch(err => { console.error('Startup failed', err); process.exit(1); });
