@@ -473,6 +473,9 @@ bot.action('wallet', async ctx => {
 });
 bot.action('deposit', async ctx => {
   await ctx.answerCbQuery();
+  if (!hasDb) return ctx.reply('A database connection is required to use deposits.');
+  const kyc = await pool.query("SELECT status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1", [String(ctx.from.id)]);
+  if (kyc.rows[0]?.status !== 'approved') return ctx.reply('🔒 Deposit is locked. You must submit KYC and wait for admin approval before depositing.', Markup.inlineKeyboard([[Markup.button.callback('🪪 Start KYC Verification', 'kyc:start')]]));
   await setState(ctx.from.id, 'deposit_amount', {});
   const bkash = await setting('bkash_number');
   const nagad = await setting('nagad_number');
@@ -646,6 +649,8 @@ bot.on('text', async ctx => {
   if (!st) return;
   const value = ctx.message.text.trim();
   if (st.state === 'deposit_amount') {
+    const kyc = await pool.query("SELECT status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1", [String(ctx.from.id)]);
+    if (kyc.rows[0]?.status !== 'approved') { await clearState(ctx.from.id); return ctx.reply('🔒 Deposit is locked until your KYC is approved by admin.', Markup.inlineKeyboard([[Markup.button.callback('🪪 Start KYC Verification', 'kyc:start')]])); }
     const amount = Number(value);
     if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) return ctx.reply('Enter a valid USDT amount, for example: 10.');
     await setState(ctx.from.id, 'deposit_method', { amount });
@@ -659,6 +664,8 @@ bot.on('text', async ctx => {
     return ctx.reply('Now enter the blockchain transaction hash.');
   }
   if (st.state === 'deposit_txid') {
+    const kyc = await pool.query("SELECT status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1", [String(ctx.from.id)]);
+    if (kyc.rows[0]?.status !== 'approved') { await clearState(ctx.from.id); return ctx.reply('🔒 Deposit is locked until your KYC is approved by admin.'); }
     const txid = value.replace(/\s+/g, '');
     if (txid.length < 20 || txid.length > 150) return ctx.reply('Enter a valid blockchain transaction hash.');
     try {
