@@ -163,28 +163,38 @@ app.post('/api/deposits',apiAuth,async(req,res)=>{
     res.status(201).json({deposit:r.rows[0]});
   } catch(e) { if(e.code==='23505') return res.status(409).json({error:'This transaction ID has already been submitted.'}); console.error(e); res.status(500).json({error:'Deposit request could not be saved.'}); }
 });
-app.post('/api/buy/:id',apiAuth,async(req,res)=>{
+async function processCardPurchase(req,res,fastBuy){
   const client=await pool.connect();
-  try {
+  try{
     await client.query('BEGIN');
     const cr=await client.query('SELECT * FROM cards WHERE id=$1 AND active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) FOR UPDATE',[req.params.id]);
-    if(!cr.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({error:'This card is no longer available.'}); }
-    const card=cr.rows[0], price=Number(card.listed_for_sale?card.listing_price:card.price);
-    if(card.owner_id && String(card.owner_id)===req.tgUser.id) { await client.query('ROLLBACK'); return res.status(400).json({error:'You already own this card.'}); }
-    const ur=await client.query('SELECT balance FROM users WHERE telegram_id=$1 FOR UPDATE',[req.tgUser.id]);
-    if(Number(ur.rows[0]?.balance||0)<price) { await client.query('ROLLBACK'); return res.status(400).json({error:'Insufficient wallet balance. Please deposit first.'}); }
+    if(!cr.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'This card is no longer available.'});}
+    const card=cr.rows[0],price=Number(card.listed_for_sale?card.listing_price:card.price);
+    if(card.owner_id&&String(card.owner_id)===req.tgUser.id){await client.query('ROLLBACK');return res.status(400).json({error:'You already own this card.'});}
+    const ur=await client.query('SELECT balance,referred_by,first_fast_buy_done FROM users WHERE telegram_id=$1 FOR UPDATE',[req.tgUser.id]);
+    if(!ur.rows.length||Number(ur.rows[0].balance)<price){await client.query('ROLLBACK');return res.status(400).json({error:'Insufficient wallet balance. Please deposit first.'});}
     await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2',[price,req.tgUser.id]);
-    if(card.owner_id) {
-      await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[price,card.owner_id]);
-      await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'sale',$2,$3)",[card.owner_id,price,'Card sold: '+card.title+' (#'+card.id+')']);
-    }
+    if(card.owner_id){await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[price,card.owner_id]);await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'sale',$2,$3)",[card.owner_id,price,'Card sold: '+card.title+' (#'+card.id+')']);}
     await client.query('UPDATE cards SET owner_id=$1,listed_for_sale=FALSE,listing_price=NULL WHERE id=$2',[req.tgUser.id,card.id]);
-    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)",[req.tgUser.id,-price,'Purchased '+card.title+' (#'+card.id+')']);
+    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)",[req.tgUser.id,-price,(fastBuy?'Fast Buy: ':'Purchased ')+card.title+' (#'+card.id+')']);
+    let commission=0;
+    if(fastBuy&&!ur.rows[0].first_fast_buy_done){
+      await client.query('UPDATE users SET first_fast_buy_done=TRUE WHERE telegram_id=$1',[req.tgUser.id]);
+      const referrer=ur.rows[0].referred_by?String(ur.rows[0].referred_by):'';
+      if(referrer&&referrer!==req.tgUser.id){
+        const amount=Number((price*0.10).toFixed(2));
+        const ins=await client.query('INSERT INTO referral_commissions(referrer_id,referred_user_id,card_id,purchase_amount,commission_amount) VALUES($1,$2,$3,$4,$5) ON CONFLICT(referred_user_id) DO NOTHING RETURNING id',[referrer,req.tgUser.id,card.id,price,amount]);
+        if(ins.rows.length){commission=amount;await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[commission,referrer]);await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'referral_commission',$2,$3)",[referrer,commission,'10% first Fast Buy referral commission']);}
+      }
+    }
     await client.query('COMMIT');
-    res.json({ok:true,message:'Purchase complete.',card:publicCard({...card,owner_id:req.tgUser.id,listed_for_sale:false,listing_price:null}),balance:Number(ur.rows[0].balance)-price});
-  } catch(e) { await client.query('ROLLBACK').catch(()=>{}); console.error('API buy failed',e); res.status(500).json({error:'Purchase failed. Please try again.'}); }
-  finally { client.release(); }
-});
+    const balance=await pool.query('SELECT balance FROM users WHERE telegram_id=$1',[req.tgUser.id]);
+    res.json({ok:true,message:fastBuy?'Fast Buy complete.':'Purchase complete.',card:publicCard({...card,owner_id:req.tgUser.id,listed_for_sale:false,listing_price:null}),balance:Number(balance.rows[0]?.balance||0),referralCommission:commission});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});console.error('API purchase failed',e);res.status(500).json({error:'Purchase failed. Please try again.'});}
+  finally{client.release();}
+}
+app.post('/api/buy/:id',apiAuth,async(req,res)=>processCardPurchase(req,res,false));
+app.post('/api/fast-buy/:id',apiAuth,async(req,res)=>processCardPurchase(req,res,true));
 app.post('/api/sell/:id',apiAuth,async(req,res)=>{
   const price=Number(req.body.price);
   if(!Number.isFinite(price)||price<=0||price>10000000) return res.status(400).json({error:'Enter a valid selling price.'});
