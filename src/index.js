@@ -21,6 +21,7 @@ const menu = Markup.inlineKeyboard([
   [Markup.button.webApp('✨ Open Golden Card Mini App', miniAppUrl)],
   [Markup.button.callback('🎴 Browse Cards', 'cards:0'), Markup.button.callback('💰 Wallet', 'wallet')],
   [Markup.button.callback('➕ Deposit', 'deposit'), Markup.button.callback('🗂 My Collection', 'collection')],
+  [Markup.button.callback('💸 Sell Cards', 'sell')],
   [Markup.button.callback('ℹ️ Help', 'help')]
 ]);
 const adminMenu = Markup.inlineKeyboard([
@@ -40,6 +41,36 @@ async function initDb() {
   await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''");
   await pool.query("CREATE INDEX IF NOT EXISTS deposits_status_created_idx ON deposits(status, created_at DESC)");
   await pool.query("CREATE INDEX IF NOT EXISTS transactions_user_created_idx ON transactions(telegram_id, created_at DESC)");
+  const existingCards = await pool.query('SELECT COUNT(*)::int AS count FROM cards');
+  if (existingCards.rows[0].count === 0) {
+    const seedCards = [
+      ['Charizard',4500,'https://images.pokemontcg.io/base1/4.png','Fire-type collectible card'],
+      ['Pikachu',2800,'https://images.pokemontcg.io/base1/58.png','Electric-type collectible card'],
+      ['Mewtwo',5200,'https://images.pokemontcg.io/base1/10.png','Psychic-type collectible card'],
+      ['Blastoise',3900,'https://images.pokemontcg.io/base1/2.png','Water-type collectible card'],
+      ['Lugia',6300,'https://images.pokemontcg.io/neo1/9.png','Legendary guardian collectible card'],
+      ['Gengar',3200,'https://images.pokemontcg.io/fossil/5.png','Ghost-type collectible card'],
+      ['Dragonite',2700,'https://images.pokemontcg.io/fossil/4.png','Dragon-type collectible card'],
+      ['Mew',4800,'https://images.pokemontcg.io/blackstar/8.png','Mythical collectible card'],
+      ['Zapdos',2200,'https://images.pokemontcg.io/base1/16.png','Electric bird collectible card'],
+      ['Venusaur',4100,'https://images.pokemontcg.io/base1/15.png','Grass-type collectible card'],
+      ['Arcanine',1900,'https://images.pokemontcg.io/gym2/12.png','Fire-type collectible card'],
+      ['Gyarados',2400,'https://images.pokemontcg.io/base1/6.png','Water-type collectible card'],
+      ['Alakazam',2600,'https://images.pokemontcg.io/base1/1.png','Psychic-type collectible card'],
+      ['Snorlax',2100,'https://images.pokemontcg.io/jungle/11.png','Normal-type collectible card'],
+      ['Ninetales',1700,'https://images.pokemontcg.io/base1/12.png','Fire-type collectible card'],
+      ['Machamp',1600,'https://images.pokemontcg.io/base1/8.png','Fighting-type collectible card'],
+      ['Clefairy',1400,'https://images.pokemontcg.io/base1/5.png','Moonlit collectible card'],
+      ['Jolteon',1800,'https://images.pokemontcg.io/jungle/4.png','Electric-type collectible card'],
+      ['Vaporeon',1800,'https://images.pokemontcg.io/jungle/12.png','Water-type collectible card'],
+      ['Flareon',1800,'https://images.pokemontcg.io/jungle/3.png','Fire-type collectible card'],
+      ['Eevee',900,'https://images.pokemontcg.io/jungle/51.png','Evolution collectible card'],
+      ['Butterfree',750,'https://images.pokemontcg.io/base1/33.png','Grass-type collectible card'],
+      ['Onix',800,'https://images.pokemontcg.io/base1/56.png','Rock-type collectible card'],
+      ['Poliwhirl',850,'https://images.pokemontcg.io/base1/33.png','Water-type collectible card']
+    ];
+    for (const c of seedCards) await pool.query('INSERT INTO cards(title,price,image_file_id,description) VALUES($1,$2,$3,$4)', c);
+  }
   for (const item of [['bkash_number', process.env.BKASH_NUMBER || ''], ['nagad_number', process.env.NAGAD_NUMBER || '']]) {
     if (item[1]) await pool.query('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO NOTHING', item);
   }
@@ -279,10 +310,10 @@ bot.command('addcard', async ctx => {
 bot.action(/^cards:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
   const offset = Number(ctx.match[1]);
-  const r = await pool.query('SELECT * FROM cards WHERE active=TRUE AND owner_id IS NULL ORDER BY id LIMIT 5 OFFSET $1', [offset]);
+  const r = await pool.query('SELECT * FROM cards WHERE active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) ORDER BY id LIMIT 5 OFFSET $1', [offset]);
   if (!r.rows.length) return ctx.reply('এখনো কার্ড যোগ করা হয়নি। Admin /addcard দিয়ে যোগ করতে পারবেন।', menu);
   for (const c of r.rows) {
-    const caption = '✨ ' + c.title + '\n🆔 Card #' + c.id + '\n💰 দাম: ' + money(c.price);
+    const caption = '✨ ' + c.title + '\n🆔 Card #' + c.id + '\n💰 দাম: ' + money(c.listed_for_sale ? c.listing_price : c.price) + (c.listed_for_sale ? '\n♻️ Player resale' : '');
     const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🛒 Buy ' + money(c.price), 'buy:' + c.id)]]);
     if (c.image_file_id) await ctx.replyWithPhoto(c.image_file_id, { caption: caption, ...keyboard });
     else await ctx.reply(caption, keyboard);
@@ -304,6 +335,20 @@ bot.action('deposit', async ctx => {
   const nagad = await setting('nagad_number');
   await ctx.reply('➕ Deposit\n\nbKash: ' + (bkash || 'Admin এখনো নম্বর দেননি') + '\nNagad: ' + (nagad || 'Admin এখনো নম্বর দেননি') + '\n\nটাকা পাঠানোর পর কত টাকা ডিপোজিট করেছেন লিখুন। Transaction ID দেওয়ার পর Admin যাচাই করবেন।');
 });
+bot.action('sell', async ctx => {
+  await ctx.answerCbQuery();
+  const r = await pool.query('SELECT id,title,price,listing_price,listed_for_sale FROM cards WHERE owner_id=$1 ORDER BY id', [String(ctx.from.id)]);
+  if (!r.rows.length) return ctx.reply('আপনার Collection খালি। আগে Marketplace থেকে কার্ড কিনুন।', menu);
+  for (const c of r.rows) await ctx.reply('💸 ' + c.title + ' (#' + c.id + ')' + (c.listed_for_sale ? '\\nListed at ' + money(c.listing_price) : '\\nOriginal price: ' + money(c.price)),
+    Markup.inlineKeyboard([[Markup.button.callback(c.listed_for_sale ? 'Cancel Listing' : 'Sell this card', 'sellcard:' + c.id)]]));
+});
+bot.action(/^sellcard:(\\d+)$/, async ctx => {
+  await ctx.answerCbQuery();
+  const r = await pool.query('SELECT id,title FROM cards WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
+  if (!r.rows.length) return ctx.reply('এই কার্ডটি আপনার Collection-এ নেই।');
+  await setState(ctx.from.id, 'sell_price', { cardId: Number(ctx.match[1]), title: r.rows[0].title });
+  await ctx.reply('💸 ' + r.rows[0].title + ' কোন দামে বিক্রি করবেন? শুধু টাকার পরিমাণ লিখুন।');
+});
 bot.action('collection', async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT id,title,price FROM cards WHERE owner_id=$1 ORDER BY id', [String(ctx.from.id)]);
@@ -323,17 +368,20 @@ bot.action(/^buy:(\d+)$/, async ctx => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const cr = await client.query('SELECT * FROM cards WHERE id=$1 AND active=TRUE AND owner_id IS NULL FOR UPDATE', [ctx.match[1]]);
+    const cr = await client.query('SELECT * FROM cards WHERE id=$1 AND active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) FOR UPDATE', [ctx.match[1]]);
     if (!cr.rows.length) { await client.query('ROLLBACK'); return ctx.reply('কার্ডটি আর বিক্রির জন্য নেই।'); }
     const card = cr.rows[0];
+    const salePrice = Number(card.listed_for_sale ? card.listing_price : card.price);
+    if (card.owner_id && String(card.owner_id) === String(ctx.from.id)) { await client.query('ROLLBACK'); return ctx.reply('এই কার্ডটি ইতিমধ্যে আপনার।'); }
     const ur = await client.query('SELECT balance FROM users WHERE telegram_id=$1 FOR UPDATE', [String(ctx.from.id)]);
-    if (!ur.rows.length || Number(ur.rows[0].balance) < Number(card.price)) {
+    if (!ur.rows.length || Number(ur.rows[0].balance) < salePrice) {
       await client.query('ROLLBACK');
-      return ctx.reply('পর্যাপ্ত ব্যালেন্স নেই। কার্ডের দাম ' + money(card.price), Markup.inlineKeyboard([[Markup.button.callback('➕ Deposit', 'deposit')]]));
+      return ctx.reply('পর্যাপ্ত ব্যালেন্স নেই। কার্ডের দাম ' + money(salePrice), Markup.inlineKeyboard([[Markup.button.callback('➕ Deposit', 'deposit')]]));
     }
-    await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2', [card.price, String(ctx.from.id)]);
-    await client.query('UPDATE cards SET owner_id=$1 WHERE id=$2', [String(ctx.from.id), card.id]);
-    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)", [String(ctx.from.id), -Number(card.price), 'Card #' + card.id + ' কেনা হয়েছে']);
+    await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2', [salePrice, String(ctx.from.id)]);
+    if (card.owner_id) { await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2', [salePrice, card.owner_id]); await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'sale',$2,$3)", [card.owner_id, salePrice, 'Card sold: ' + card.title]); }
+    await client.query('UPDATE cards SET owner_id=$1,listed_for_sale=FALSE,listing_price=NULL WHERE id=$2', [String(ctx.from.id), card.id]);
+    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)", [String(ctx.from.id), -salePrice, 'Card #' + card.id + ' কেনা হয়েছে']);
     await client.query('COMMIT');
     await ctx.reply('✅ কেনা সম্পন্ন! ' + card.title + ' আপনার Collection-এ যোগ হয়েছে।', menu);
   } catch (e) {
@@ -428,6 +476,14 @@ bot.on('text', async ctx => {
       await ctx.reply('রিকোয়েস্ট জমা হয়নি। পরে আবার চেষ্টা করুন।');
     }
     return;
+  }
+  if (st.state === 'sell_price') {
+    const price = Number(value);
+    if (!Number.isFinite(price) || price <= 0 || price > 10000000) return ctx.reply('সঠিক বিক্রয়মূল্য লিখুন।');
+    const r = await pool.query('UPDATE cards SET listed_for_sale=TRUE,listing_price=$1 WHERE id=$2 AND owner_id=$3 RETURNING title', [price, st.data.cardId, String(ctx.from.id)]);
+    if (!r.rows.length) { await clearState(ctx.from.id); return ctx.reply('কার্ডটি আর আপনার Collection-এ নেই।'); }
+    await clearState(ctx.from.id);
+    return ctx.reply('✅ ' + r.rows[0].title + ' ' + money(price) + ' দামে Marketplace-এ তালিকাভুক্ত হয়েছে।', menu);
   }
   if (st.state === 'card_title' && isAdmin(ctx)) {
     await setState(ctx.from.id, 'card_price', { title: value });
