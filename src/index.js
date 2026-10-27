@@ -339,10 +339,10 @@ bot.action('sell', async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT id,title,price,listing_price,listed_for_sale FROM cards WHERE owner_id=$1 ORDER BY id', [String(ctx.from.id)]);
   if (!r.rows.length) return ctx.reply('আপনার Collection খালি। আগে Marketplace থেকে কার্ড কিনুন।', menu);
-  for (const c of r.rows) await ctx.reply('💸 ' + c.title + ' (#' + c.id + ')' + (c.listed_for_sale ? '\\nListed at ' + money(c.listing_price) : '\\nOriginal price: ' + money(c.price)),
+  for (const c of r.rows) await ctx.reply('💸 ' + c.title + ' (#' + c.id + ')' + (c.listed_for_sale ? '\nListed at ' + money(c.listing_price) : '\nOriginal price: ' + money(c.price)),
     Markup.inlineKeyboard([[Markup.button.callback(c.listed_for_sale ? 'Cancel Listing' : 'Sell this card', 'sellcard:' + c.id)]]));
 });
-bot.action(/^sellcard:(\\d+)$/, async ctx => {
+bot.action(/^sellcard:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT id,title FROM cards WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
   if (!r.rows.length) return ctx.reply('এই কার্ডটি আপনার Collection-এ নেই।');
