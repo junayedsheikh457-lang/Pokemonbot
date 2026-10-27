@@ -40,6 +40,7 @@ async function initDb() {
   await pool.query("CREATE TABLE IF NOT EXISTS deposits (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), amount NUMERIC(12,2) NOT NULL CHECK(amount > 0), method TEXT NOT NULL, transaction_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query('ALTER TABLE deposits ADD COLUMN IF NOT EXISTS review_due_at TIMESTAMPTZ');
   await pool.query("CREATE TABLE IF NOT EXISTS referral_commissions (id BIGSERIAL PRIMARY KEY, referrer_id BIGINT NOT NULL REFERENCES users(telegram_id), referred_user_id BIGINT NOT NULL UNIQUE REFERENCES users(telegram_id), card_id BIGINT NOT NULL, purchase_amount NUMERIC(12,2) NOT NULL, commission_amount NUMERIC(12,2) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await pool.query("CREATE TABLE IF NOT EXISTS withdrawals (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), amount NUMERIC(12,2) NOT NULL CHECK(amount > 0), method TEXT NOT NULL, destination TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS kyc_submissions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), front_file_id TEXT NOT NULL, back_file_id TEXT NOT NULL, selfie_file_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), type TEXT NOT NULL, amount NUMERIC(12,2) NOT NULL, details TEXT DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS user_states (telegram_id BIGINT PRIMARY KEY, state TEXT NOT NULL, data JSONB NOT NULL DEFAULT '{}'::jsonb)");
@@ -165,7 +166,27 @@ app.post('/api/kyc',apiAuth,async(req,res)=>{
 });
 app.get('/api/referrals',apiAuth,async(req,res)=>{
   const [u,c]=await Promise.all([pool.query('SELECT COUNT(*)::int AS count FROM users WHERE referred_by=$1',[req.tgUser.id]),pool.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(commission_amount),0)::numeric AS total FROM referral_commissions WHERE referrer_id=$1',[req.tgUser.id])]);
-  res.json({referralLink:botUsername?'https://t.me/'+botUsername+'?start=ref_'+req.tgUser.id:'',invited:u.rows[0].count,commissionCount:c.rows[0].count,earned:Number(c.rows[0].total)});
+  const pending=await pool.query("SELECT COALESCE(SUM(amount),0)::numeric AS total FROM withdrawals WHERE telegram_id=$1 AND status='pending'",[req.tgUser.id]);
+  const balance=await pool.query('SELECT balance FROM users WHERE telegram_id=$1',[req.tgUser.id]);
+  res.json({referralLink:botUsername?'https://t.me/'+botUsername+'?start=ref_'+req.tgUser.id:'',invited:u.rows[0].count,commissionCount:c.rows[0].count,earned:Number(c.rows[0].total),balance:Number(balance.rows[0]?.balance||0),pendingWithdrawals:Number(pending.rows[0].total)});
+});
+app.post('/api/withdrawals',apiAuth,async(req,res)=>{
+  const amount=Number(req.body.amount),method=String(req.body.method||'').trim().slice(0,40),destination=String(req.body.destination||'').trim();
+  if(!Number.isFinite(amount)||amount<5||amount>1000000)return res.status(400).json({error:'Withdrawal amount must be at least $5.'});
+  if(!method||!destination||destination.length>180)return res.status(400).json({error:'Enter a withdrawal method and valid destination address.'});
+  const client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const u=await client.query('SELECT balance FROM users WHERE telegram_id=$1 FOR UPDATE',[req.tgUser.id]);
+    if(!u.rows.length||Number(u.rows[0].balance)<amount){await client.query('ROLLBACK');return res.status(400).json({error:'Insufficient wallet balance.'});}
+    await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2',[amount,req.tgUser.id]);
+    const w=await client.query("INSERT INTO withdrawals(telegram_id,amount,method,destination) VALUES($1,$2,$3,$4) RETURNING id",[req.tgUser.id,amount,method,destination]);
+    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'withdrawal_pending',$2,$3)",[req.tgUser.id,-amount,'Withdrawal request #'+w.rows[0].id+' pending admin review']);
+    await client.query('COMMIT');
+    for(const adminId of admins)bot.telegram.sendMessage(adminId,'💸 Withdrawal request #'+w.rows[0].id+'\nUser: '+req.tgUser.id+'\nAmount: '+money(amount)+'\nMethod: '+method+'\nDestination: '+destination,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve withdrawal','withdraw:approve:'+w.rows[0].id),Markup.button.callback('❌ Reject & refund','withdraw:reject:'+w.rows[0].id)]])).catch(()=>{});
+    res.status(201).json({ok:true,id:w.rows[0].id});
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});console.error('Withdrawal request failed',e.message);res.status(500).json({error:'Could not submit withdrawal request.'});}
+  finally{client.release();}
 });
 app.get('/api/config', async (_req,res) => {
   if (!hasDb) return res.json({mode:'preview',database:false,payments:{networks:{}}});
@@ -209,11 +230,11 @@ async function processCardPurchase(req,res,fastBuy){
     await client.query('BEGIN');
     const cr=await client.query('SELECT * FROM cards WHERE id=$1 AND active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) FOR UPDATE',[req.params.id]);
     if(!cr.rows.length){await client.query('ROLLBACK');return res.status(404).json({error:'This card is no longer available.'});}
-    const card=cr.rows[0],price=Number(card.listed_for_sale?card.listing_price:card.price);
+    const card=cr.rows[0],price=Number(card.listed_for_sale?card.listing_price:card.price),fee=Number((price*0.005).toFixed(2)),total=Number((price+fee).toFixed(2));
     if(card.owner_id&&String(card.owner_id)===req.tgUser.id){await client.query('ROLLBACK');return res.status(400).json({error:'You already own this card.'});}
     const ur=await client.query('SELECT balance,referred_by,first_fast_buy_done FROM users WHERE telegram_id=$1 FOR UPDATE',[req.tgUser.id]);
-    if(!ur.rows.length||Number(ur.rows[0].balance)<price){await client.query('ROLLBACK');return res.status(400).json({error:'Insufficient wallet balance. Please deposit first.'});}
-    await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2',[price,req.tgUser.id]);
+    if(!ur.rows.length||Number(ur.rows[0].balance)<total){await client.query('ROLLBACK');return res.status(400).json({error:'Insufficient wallet balance. Card price plus the 0.5% purchase fee is '+money(total)+'. Please deposit first.'});}
+    await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2',[total,req.tgUser.id]);
     if(card.owner_id){await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[price,card.owner_id]);await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'sale',$2,$3)",[card.owner_id,price,'Card sold: '+card.title+' (#'+card.id+')']);}
     await client.query('UPDATE cards SET owner_id=$1,listed_for_sale=FALSE,listing_price=NULL WHERE id=$2',[req.tgUser.id,card.id]);
     await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)",[req.tgUser.id,-price,(fastBuy?'Fast Buy: ':'Purchased ')+card.title+' (#'+card.id+')']);
@@ -229,7 +250,7 @@ async function processCardPurchase(req,res,fastBuy){
     }
     await client.query('COMMIT');
     const balance=await pool.query('SELECT balance FROM users WHERE telegram_id=$1',[req.tgUser.id]);
-    res.json({ok:true,message:fastBuy?'Fast Buy complete.':'Purchase complete.',card:publicCard({...card,owner_id:req.tgUser.id,listed_for_sale:false,listing_price:null}),balance:Number(balance.rows[0]?.balance||0),referralCommission:commission});
+    res.json({ok:true,message:fastBuy?'Fast Buy complete.':'Purchase complete.',card:publicCard({...card,owner_id:req.tgUser.id,listed_for_sale:false,listing_price:null}),balance:Number(balance.rows[0]?.balance||0),referralCommission:commission,price,fee,total});
   }catch(e){await client.query('ROLLBACK').catch(()=>{});console.error('API purchase failed',e);res.status(500).json({error:'Purchase failed. Please try again.'});}
   finally{client.release();}
 }
@@ -444,9 +465,29 @@ bot.action('transactions', async ctx => {
   const r = await pool.query('SELECT type,amount,details FROM transactions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 10', [String(ctx.from.id)]);
   await ctx.reply(r.rows.length ? '📜 Transaction History:\n' + r.rows.map(t => t.type + ': ' + money(t.amount) + ' — ' + t.details).join('\n') : 'No completed transactions yet.');
 });
+bot.action(/^withdraw:(approve|reject):(\d+)$/,async ctx=>{
+  if(!isAdmin(ctx)){await ctx.answerCbQuery('Admin only.');return;}
+  await ctx.answerCbQuery();
+  const action=ctx.match[1],id=ctx.match[2],client=await pool.connect();
+  try{
+    await client.query('BEGIN');
+    const r=await client.query('SELECT * FROM withdrawals WHERE id=$1 FOR UPDATE',[id]);
+    if(!r.rows.length||r.rows[0].status!=='pending'){await client.query('ROLLBACK');return ctx.reply('Withdrawal already processed or not found.');}
+    const w=r.rows[0],status=action==='approve'?'approved':'rejected';
+    await client.query('UPDATE withdrawals SET status=$1,reviewed_by=$2,reviewed_at=NOW() WHERE id=$3',[status,ctx.from.id,id]);
+    if(action==='reject'){
+      await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[w.amount,w.telegram_id]);
+      await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'withdrawal_refund',$2,$3)",[w.telegram_id,w.amount,'Refund for rejected withdrawal #'+id]);
+    }else await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'withdrawal_paid',$2,$3)",[w.telegram_id,0,'Withdrawal #'+id+' approved by admin']);
+    await client.query('COMMIT');
+    bot.telegram.sendMessage(String(w.telegram_id),action==='approve'?'Your withdrawal #'+id+' was approved. Please allow time for the payout to arrive.':'Your withdrawal #'+id+' was rejected and the amount has been refunded to your wallet.').catch(()=>{});
+    await ctx.reply('Withdrawal #'+id+' '+status+'.');
+  }catch(e){await client.query('ROLLBACK').catch(()=>{});console.error(e);await ctx.reply('Could not process withdrawal.');}
+  finally{client.release();}
+});
 bot.action('help', async ctx => {
   await ctx.answerCbQuery();
-  await ctx.reply('Browse Cards to explore the marketplace. Use Deposit to submit a funding request. Resale and withdrawals are not yet available in this version.', menu);
+  await ctx.reply('Browse Cards to explore the marketplace. Use Deposit to submit a funding request. Card purchases include a 0.5% fee. Use Refer & Earn to invite friends and request wallet withdrawals from the Mini App.', menu);
 });
 bot.action(/^buy:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
