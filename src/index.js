@@ -966,7 +966,8 @@ bot.on('text', async ctx => {
   }
   if (st.state === 'deposit_method') {
     const method = value.toLowerCase();
-    if (method !== 'bkash' && method !== 'nagad') return ctx.reply('bKash অথবা Nagad লিখুন।');
+    if (!['trc20','erc20','bep20','polygon','arbitrum','optimism','solana','ton','avalanche','base'].includes(method)) return ctx.reply('সমর্থিত USDT network-এর নাম লিখুন, যেমন TRC20।');
+    if (!(await setting('usdt_'+method))) return ctx.reply('এই network-এর wallet address Admin এখনো সেট করেননি।');
     await setState(ctx.from.id, 'deposit_txid', { amount: st.data.amount, method: method });
     return ctx.reply('এবার Transaction ID লিখুন।');
   }
