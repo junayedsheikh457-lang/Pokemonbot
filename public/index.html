@@ -288,17 +288,55 @@ body{background:radial-gradient(ellipse at 50% -10%,#38270c 0,transparent 40%),#
 .detail-title strong{color:#ffdb63}
 .notice{border-color:#4c3a1d;background:#0b1015}
 @media(max-width:370px){.grid{gap:6px}.art{height:130px!important}.cardart.illustrated{height:112px!important}.cardbody{padding:6px!important}}
+
+/* Home screen rebuilt to match the supplied premium black-and-gold app reference */
+.home-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(105px,.78fr);gap:8px;align-items:center;min-height:218px;padding:18px 12px 16px 15px;margin:0 0 13px;overflow:hidden;border:1px solid #9a712d;border-radius:17px;background:radial-gradient(ellipse at 22% 44%,#4c310b 0,transparent 43%),radial-gradient(ellipse at 80% 55%,#33250a 0,transparent 40%),linear-gradient(125deg,#050809,#11100b 70%,#030607);box-shadow:inset 0 1px #fff2,0 12px 26px #0007}
+.home-hero:before{content:'';position:absolute;inset:5px;border:1px solid #e3b94c20;border-radius:12px;pointer-events:none}
+.hero-copy{position:relative;z-index:2;min-width:0}.hero-copy .eyebrow{font-size:8px;letter-spacing:1.35px;line-height:1.5}.hero-copy h2{font-size:clamp(23px,7vw,29px);line-height:1.08;margin:10px 0 9px;max-width:180px;color:#ffe17b}.hero-copy p{font-size:12px;line-height:1.5;margin:0 0 13px;color:#e0d6bf}.hero-copy .goldbtn{padding:10px 11px;font-size:11px;white-space:nowrap}
+.hero-card-wrap{position:relative;display:flex;align-items:center;justify-content:center;min-width:0;min-height:174px;flex-direction:column}
+.hero-card-glow{position:absolute;width:145px;height:145px;border-radius:50%;background:#d18b1d24;filter:blur(20px)}
+.hero-card-image{position:relative;z-index:1;width:min(100%,128px);height:157px;object-fit:contain;padding:3px;border:2px solid #f6cf59;border-radius:9px;background:linear-gradient(140deg,#f7dc7c,#573807 35%,#100d08 72%,#b57c16);box-shadow:0 0 0 1px #fff4,0 8px 18px #000c,0 0 18px #f7c64b36;transform:rotate(4deg)}
+.hero-dragon-fallback{position:relative;z-index:1;width:112px;height:145px;border:2px solid #f6cf59;border-radius:9px;background:radial-gradient(ellipse,#8a5b0d,#100d08 70%);place-items:center;font-size:60px;box-shadow:0 0 20px #f7c64b35;transform:rotate(4deg)}
+.hero-dragon-fallback small{font-size:7px;letter-spacing:1px;color:#ffe18a}
+.hero-card-caption{z-index:2;margin-top:7px;font-size:7px;letter-spacing:1px;color:#f5d477;font-weight:800;text-align:center}
+.welcome-panel{display:flex;gap:10px;align-items:flex-start;padding:12px;border:1px solid #344653;border-radius:12px;background:linear-gradient(135deg,#111c25,#081018);margin-bottom:10px;box-shadow:0 6px 16px #0004}
+.welcome-icon{display:grid;place-items:center;flex:0 0 25px;height:25px;border-radius:50%;background:#2d220d;color:#ffda65;font-size:15px}.welcome-panel strong{display:block;font-size:11px;color:#f5f5f2;line-height:1.4}.welcome-panel p{margin:4px 0 0;font-size:10px;line-height:1.5;color:#b9c5cc}
+.home-wallet{display:flex;align-items:center;gap:10px;padding:11px;border:1px solid #9a712d;border-radius:12px;background:linear-gradient(120deg,#17150e,#050b0e);margin-bottom:10px;cursor:pointer;box-shadow:inset 0 1px #fff1}
+.wallet-icon{display:grid;place-items:center;flex:0 0 42px;height:42px;border:1px solid #d3a43b;border-radius:50%;color:#ffdc6b;font-size:23px;background:radial-gradient(circle,#34260c,#080d10)}
+.wallet-copy{display:flex;flex:1;min-width:0;flex-direction:column;gap:2px}.wallet-copy small{font-size:9px;color:#d5dce0}.wallet-copy strong{font-size:18px;color:#ffda65;font-variant-numeric:tabular-nums}.wallet-copy span{font-size:8px;color:#91a0a9}.mini-deposit{border:0;border-radius:20px;padding:8px 9px;background:linear-gradient(100deg,#ffe477,#efa91d);color:#211704;font-weight:850;font-size:9px;white-space:nowrap}
+.home-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:10px 0 18px}.home-action{display:flex;align-items:center;gap:9px;min-width:0;min-height:48px;padding:9px 10px;border:1px solid #344653;border-radius:10px;background:linear-gradient(145deg,#0c1922,#050a0e);color:#f2f5f6;text-align:left;font-size:10px;font-weight:650;box-shadow:inset 0 1px #fff1}.home-action b{display:grid;place-items:center;flex:0 0 25px;height:25px;border:1px solid #665022;border-radius:6px;color:#ffd65c;font-size:15px;background:#17150e}.home-action span{line-height:1.25}.home-action.primary{background:linear-gradient(110deg,#ffe477,#efa91d);border-color:#ffe18a;color:#201604}.home-action.primary b{background:#e6ae29;border-color:#fff0a2;color:#201604}
+#home .sectionhead{margin-top:16px}
+#home .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+#home .art{height:124px!important;padding:5px!important}
+#home .cardart.illustrated{width:70px!important;height:100px!important}
+#home .cardbody{padding:7px!important}
+#home .cardbody h4{font-size:10px!important;min-height:24px}
+#home .price{font-size:11px!important}
+#home .buy{font-size:9px!important;padding:7px 2px!important}
+@media(max-width:360px){.home-hero{grid-template-columns:minmax(0,1fr) 104px;padding:15px 9px;min-height:200px}.hero-card-image{height:137px}.hero-card-wrap{min-height:154px}.hero-copy h2{font-size:23px}.home-action{padding:8px;gap:7px;font-size:9px}.wallet-copy strong{font-size:16px}}
 </style>
 </head>
 <body>
 <div class="wrap">
 <header class="top"><div class="brand"><div class="logo">♛</div><div><h1>GOLDEN CARD</h1><small>COLLECT • TRADE • OWN</small></div></div><div class="pill">✦ GOLD MEMBER</div></header>
 <section id="home" class="page active">
-<div class="hero"><div class="eyebrow">✦ GOLDEN CARD MARKET</div><h2>Collect<br>Trade<br>Earn</h2><p>Rare Cards<br>Real Value</p><button class="goldbtn" onclick="go('market')">Explore Cards&nbsp; →</button></div>
-<div class="stats"><div class="stat"><b>6</b><span>Golden cards</span></div><div class="stat"><b>৳450</b><span>Starting price</span></div><div class="stat"><b>Demo</b><span>Marketplace</span></div></div>
+<div class="home-hero">
+  <div class="hero-copy"><div class="eyebrow">✦ GOLDEN CARD MARKET</div><h2>Collect<br>Trade<br>Earn</h2><p>Rare Cards<br>Real Value</p><button class="goldbtn" onclick="go('market')">Explore Cards <span>→</span></button></div>
+  <div class="hero-card-wrap"><div class="hero-card-glow"></div><img class="hero-card-image" src="https://images.pokemontcg.io/base1/4.png" alt="Golden featured trading card" onerror="this.style.display='none';document.getElementById('heroDragonFallback').style.display='grid'"><div id="heroDragonFallback" class="hero-dragon-fallback" style="display:none">🐉<small>GOLD SERIES</small></div><div class="hero-card-caption">✦ FEATURED CARD</div></div>
+</div>
+<div class="welcome-panel"><span class="welcome-icon">✦</span><div><strong>Welcome to Golden Card Market!</strong><p>Discover rare and powerful collectible cards. Browse the market, build your collection, and explore new cards.</p></div></div>
+<div class="home-wallet" onclick="go('wallet')"><div class="wallet-icon">▣</div><div class="wallet-copy"><small>Wallet Balance</small><strong>৳0.00</strong><span>Demo balance · Tap to open wallet</span></div><button class="mini-deposit" onclick="event.stopPropagation();go('deposit')">＋ Deposit</button></div>
+<div class="home-actions">
+  <button class="home-action primary" onclick="go('market')"><b>▣</b><span>Buy Cards</span></button>
+  <button class="home-action" onclick="go('wallet')"><b>▰</b><span>My Wallet</span></button>
+  <button class="home-action" onclick="go('sell')"><b>⇄</b><span>Sell Cards</span></button>
+  <button class="home-action" onclick="go('collection')"><b>♢</b><span>My Collection</span></button>
+  <button class="home-action" onclick="go('transactions')"><b>☷</b><span>Transaction History</span></button>
+  <button class="home-action" onclick="go('support')"><b>?</b><span>Help & Support</span></button>
+</div>
 <div class="sectionhead"><h3>Featured Golden Cards</h3><button onclick="go('market')">View All →</button></div>
 <div class="grid" id="featured"></div>
-<div class="notice">✨ <b>Golden Card Market</b><br>Rare cards, unique power. Build your collection and explore the marketplace.</div>
+<div class="notice">✨ <b>Golden Card Market</b><br>Demo preview: card prices and wallet actions are sample data until live purchase and payment processing are enabled.</div>
 </section>
 
 <section id="details" class="page"><div class="sectionhead"><button onclick="go('market')">← Back to Cards</button><h3>Card Details</h3></div><div id="detailcontent"></div></section>
