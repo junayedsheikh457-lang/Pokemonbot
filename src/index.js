@@ -144,8 +144,8 @@ app.post('/api/kyc',apiAuth,async(req,res)=>{
   const valid=x=>typeof x==='string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(x);
   if(images.some(x=>!valid(x)))return res.status(400).json({error:'Choose all 3 JPG, PNG or WEBP photos.'});
   if(images.some(x=>Buffer.byteLength(x.split(',')[1],'base64')>5*1024*1024))return res.status(400).json({error:'Each photo must be 5 MB or smaller.'});
-  const existing=await pool.query("SELECT id FROM kyc_submissions WHERE telegram_id=$1 AND status='pending' LIMIT 1",[req.tgUser.id]);
-  if(existing.rows.length)return res.status(409).json({error:'Your KYC is already pending admin review.'});
+  const existing=await pool.query("SELECT id,status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1",[req.tgUser.id]);
+  if(existing.rows.length)return res.status(409).json({error:existing.rows[0].status==='pending'?'Your KYC is already pending admin review.':existing.rows[0].status==='approved'?'Your KYC is already approved. You cannot upload it again.':'Your KYC has already been submitted and reviewed. Contact support if you need help.'});
   const firstAdmin=[...admins][0];
   if(!firstAdmin)return res.status(503).json({error:'KYC review is not configured. Contact support.'});
   const ids=[];
@@ -189,6 +189,8 @@ app.get('/api/collection',apiAuth,async(req,res)=>{
   res.json({cards:r.rows.map(publicCard)});
 });
 app.post('/api/deposits',apiAuth,async(req,res)=>{
+  const kyc=await pool.query("SELECT status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1",[req.tgUser.id]);
+  if(kyc.rows[0]?.status!=='approved')return res.status(403).json({error:'KYC approval is required before you can deposit. Submit your KYC and wait for admin approval.'});
   const amount=Number(req.body.amount), method=String(req.body.method||'').toLowerCase(), txid=String(req.body.transactionId||'').trim();
   if(!Number.isFinite(amount)||amount<1||amount>1000000) return res.status(400).json({error:'Deposit amount must be between 1 and 1,000,000 USDT.'});
   const supportedNetworks=["trc20","erc20","bep20","polygon","arbitrum","optimism","solana","ton","avalanche","base"];
