@@ -87,7 +87,7 @@ async function initDb() {
   try {
     const catalog = [];
     for (let page = 1; page <= 5; page++) {
-      const response = await fetch('https://pokemontcg.jacobcorbett.com/api/v1/cards?language=en&limit=100&page=' + page + '&sort=name', { signal: AbortSignal.timeout(7000) });
+      const response = await fetch('https://pokemontcg.jacobcorbett.com/api/v1/cards?language=en&limit=100&page=' + page + '', { signal: AbortSignal.timeout(7000) });
       if (!response.ok) break;
       const payload = await response.json();
       const rows = Array.isArray(payload.data) ? payload.data : [];
