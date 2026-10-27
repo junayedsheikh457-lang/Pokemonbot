@@ -86,7 +86,7 @@ async function initDb() {
   // The price is an illustrative marketplace estimate, not a live market quote.
   try {
     const catalog = [];
-    for (let page = 1; page <= 5 && catalog.length < 180; page++) {
+    for (let page = 1; page <= 5; page++) {
       const response = await fetch('https://pokemontcg.jacobcorbett.com/api/v1/cards?language=en&limit=100&page=' + page + '&sort=name', { signal: AbortSignal.timeout(7000) });
       if (!response.ok) break;
       const payload = await response.json();
@@ -116,7 +116,7 @@ async function initDb() {
     for (const card of additions) {
       await pool.query("INSERT INTO cards(title,price,image_file_id,description,category) SELECT $1,$2,$3,$4,$5 WHERE NOT EXISTS (SELECT 1 FROM cards WHERE LOWER(title)=LOWER($1) AND owner_id IS NULL)",[card.title,card.price,card.image,card.description,card.category]);
     }
-    await pool.query("UPDATE cards SET price = 20 + (id * 37 % 781) WHERE owner_id IS NULL AND listed_for_sale=FALSE AND price > 800");
+    await pool.query("UPDATE cards SET price = 20 + (id * 37 % 781) WHERE owner_id IS NULL AND listed_for_sale=FALSE");
     console.log('Pokémon catalogue import checked:', additions.length, 'unique names.');
   } catch (e) {
     console.warn('Pokémon catalogue import skipped; existing catalogue remains available:', e.message);
