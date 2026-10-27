@@ -436,6 +436,12 @@ bot.action('referral',async ctx=>{
   const [u,c]=await Promise.all([pool.query('SELECT COUNT(*)::int AS invited FROM users WHERE referred_by=$1',[String(ctx.from.id)]),pool.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(commission_amount),0)::numeric AS earned FROM referral_commissions WHERE referrer_id=$1',[String(ctx.from.id)])]);
   return ctx.reply('👥 GOLDEN REFER & EARN\\n\\nYour invite link:\\n'+link+'\\n\\nInvited: '+u.rows[0].invited+'\\nFirst Fast Buys: '+c.rows[0].count+'\\nEarned: '+money(c.rows[0].earned)+'\\n\\n10% commission applies only to each referred user’s first Fast Buy.',Markup.inlineKeyboard([[Markup.button.callback('🪪 Start KYC','kyc:start')],[Markup.button.webApp('Open Mini App',miniAppUrl)]]));
 });
+bot.command('kyc',async ctx=>{
+  if(!hasDb)return ctx.reply('KYC চালাতে database দরকার।');
+  await ensureUser(ctx);
+  await setState(ctx.from.id,'kyc_front',{});
+  return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/3: Send a clear photo of the FRONT of your own NID or passport. Then send the back, followed by a selfie holding the same ID.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
+});
 bot.action('kyc:start',async ctx=>{
   await ctx.answerCbQuery();if(!hasDb)return ctx.reply('KYC চালাতে database দরকার।');await ensureUser(ctx);await setState(ctx.from.id,'kyc_front',{});
   return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/3: Send a clear photo of the FRONT of your own NID or passport. Then send the back, followed by a selfie holding the same ID.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
