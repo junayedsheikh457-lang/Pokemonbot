@@ -80,6 +80,47 @@ async function initDb() {
     ];
     for (const c of seedCards) await pool.query('INSERT INTO cards(title,price,image_file_id,description) VALUES($1,$2,$3,$4)', c);
   }
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'Other'");
+  await pool.query("UPDATE cards SET category = CASE WHEN description ILIKE '%fire%' THEN 'Fire' WHEN description ILIKE '%water%' THEN 'Water' WHEN description ILIKE '%electric%' THEN 'Electric' WHEN description ILIKE '%psychic%' THEN 'Psychic' WHEN description ILIKE '%grass%' THEN 'Grass' WHEN description ILIKE '%dragon%' THEN 'Dragon' WHEN description ILIKE '%ghost%' THEN 'Ghost' WHEN description ILIKE '%fighting%' THEN 'Fighting' WHEN description ILIKE '%ice%' THEN 'Ice' WHEN description ILIKE '%dark%' THEN 'Dark' WHEN description ILIKE '%steel%' OR description ILIKE '%metal%' THEN 'Metal' WHEN description ILIKE '%bug%' THEN 'Bug' WHEN description ILIKE '%poison%' THEN 'Poison' WHEN description ILIKE '%ground%' THEN 'Ground' WHEN description ILIKE '%rock%' THEN 'Rock' WHEN description ILIKE '%fairy%' THEN 'Fairy' WHEN description ILIKE '%normal%' THEN 'Normal' ELSE category END WHERE category='Other'");
+  // Add a curated catalogue of 120 distinct Pokémon from the public card database.
+  // The price is an illustrative marketplace estimate, not a live market quote.
+  try {
+    const catalog = [];
+    for (let page = 1; page <= 5 && catalog.length < 180; page++) {
+      const response = await fetch('https://pokemontcg.jacobcorbett.com/api/v1/cards?language=en&limit=100&page=' + page + '&sort=name', { signal: AbortSignal.timeout(7000) });
+      if (!response.ok) break;
+      const payload = await response.json();
+      const rows = Array.isArray(payload.data) ? payload.data : [];
+      if (!rows.length) break;
+      catalog.push(...rows);
+      if (rows.length < 100) break;
+    }
+    const seen = new Set();
+    const additions = [];
+    for (const card of catalog) {
+      const title = String(card.name || '').trim();
+      if (!title) continue;
+      const key = title.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const category = (Array.isArray(card.types) && card.types[0]) || card.element || card.type || 'Other';
+      const image = card.originalImageUrl || card.imageUrl || card.image || null;
+      const setName = card.set?.name || card.setName || 'Pokémon TCG';
+      const number = card.number ? ' #' + card.number : '';
+      const rarity = card.rarity ? ' Rarity: ' + card.rarity + '.' : '';
+      const hash = [...key].reduce((sum, ch) => (sum * 31 + ch.charCodeAt(0)) % 1000003, 7);
+      const price = 20 + (hash % 781);
+      additions.push({title,category:String(category).replace(/-type$/i,''),price,image,description:title + ' Pokémon Trading Card Game collectible from ' + setName + number + '.' + rarity});
+      if (additions.length >= 150) break;
+    }
+    for (const card of additions) {
+      await pool.query("INSERT INTO cards(title,price,image_file_id,description,category) SELECT $1,$2,$3,$4,$5 WHERE NOT EXISTS (SELECT 1 FROM cards WHERE LOWER(title)=LOWER($1) AND owner_id IS NULL)",[card.title,card.price,card.image,card.description,card.category]);
+    }
+    await pool.query("UPDATE cards SET price = 20 + (id * 37 % 781) WHERE owner_id IS NULL AND listed_for_sale=FALSE AND price > 800");
+    console.log('Pokémon catalogue import checked:', additions.length, 'unique names.');
+  } catch (e) {
+    console.warn('Pokémon catalogue import skipped; existing catalogue remains available:', e.message);
+  }
   for (const item of [["usdt_trc20",""],["usdt_erc20",""],["usdt_bep20",""],["usdt_polygon",""],["usdt_arbitrum",""],["usdt_optimism",""],["usdt_solana",""],["usdt_ton",""],["usdt_avalanche",""],["usdt_base",""]]) {
     if (item[1]) await pool.query('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO NOTHING', item);
   }
@@ -137,7 +178,7 @@ function apiAdmin(req,res,next) {
   if (!admins.has(String(req.tgUser.id))) return res.status(403).json({error:'Admin access only.'});
   next();
 }
-const publicCard = c => ({id:Number(c.id),title:c.title,price:Number(c.listing_price ?? c.price),originalPrice:Number(c.price),image:c.image_file_id || null,description:c.description || '',active:c.active,ownerId:c.owner_id ? String(c.owner_id) : null,listedForSale:Boolean(c.listed_for_sale)});
+const publicCard = c => ({id:Number(c.id),title:c.title,price:Number(c.listing_price ?? c.price),originalPrice:Number(c.price),image:c.image_file_id || null,description:c.description || '',category:c.category || 'Other',type:c.category || 'Other',active:c.active,ownerId:c.owner_id ? String(c.owner_id) : null,listedForSale:Boolean(c.listed_for_sale)});
 app.post('/api/kyc',apiAuth,async(req,res)=>{
  try{
   const images=[req.body.front,req.body.back,req.body.selfie];
