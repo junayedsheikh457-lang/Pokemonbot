@@ -291,7 +291,7 @@ app.post('/api/admin/deposits/:id/:action',apiAuth,apiAdmin,async(req,res)=>{
       await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'deposit',$2,$3)",[d.telegram_id,d.amount,'Deposit #'+d.id+' USDT approved']);
     }
     await client.query('COMMIT');
-    bot.telegram.sendMessage(String(d.telegram_id),action==='approve'?'🎉 আপনার '+money(d.amount)+' deposit approve হয়েছে। Wallet update করা হয়েছে।':'আপনার Deposit #'+d.id+' reject হয়েছে। পেমেন্টের তথ্য Admin-এর সঙ্গে যাচাই করুন।').catch(()=>{});
+    bot.telegram.sendMessage(String(d.telegram_id),action==='approve'?'🎉 Your '+money(d.amount)+' deposit approved. Your wallet has been updated.':'Your Deposit #'+d.id+' was rejected. Please verify your payment details with support.').catch(()=>{});
     res.json({ok:true,status});
   } catch(e) { await client.query('ROLLBACK').catch(()=>{}); console.error(e); res.status(500).json({error:'Could not process deposit.'}); }
   finally { client.release(); }
@@ -351,58 +351,58 @@ bot.use(async (ctx, next) => {
   if (hasDb) return next();
   const text = ctx.message && ctx.message.text;
   if (text && (text.startsWith('/start') || text.startsWith('/menu'))) return next();
-  if (ctx.callbackQuery) { await ctx.answerCbQuery('এটি Preview Mode। Database connect করলে সব ফিচার চালু হবে।').catch(() => {}); return; }
-  if (text) return ctx.reply('👀 Golden Card Market এখন Preview Mode-এ চলছে। Database connect না করা পর্যন্ত Card, Wallet, Deposit ও Admin data ফিচার বন্ধ থাকবে। পরে Database URL যোগ করে redeploy করুন।');
+  if (ctx.callbackQuery) { await ctx.answerCbQuery('Preview mode. Connect a database to enable all features.').catch(() => {}); return; }
+  if (text) return ctx.reply('👀 Golden Card Market is running in preview mode. Cards, wallet, deposits, and admin data are disabled until a database is connected. Add your DATABASE_URL and redeploy to enable these features.');
   return next();
 });
 
 bot.start(async ctx => {
-  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\\n\\nPremium Black & Gold Mini App খুলতে নিচের বাটনে চাপ দিন।', menu);
+  if (!hasDb) return ctx.reply('✨ Golden Card Market Preview\\n\\nTap the button below to open the premium black-and-gold Mini App.', menu);
   await ensureUser(ctx);
   const m=String(ctx.startPayload||'').match(/^ref_(\\d{1,20})$/);
   if(m&&m[1]!==String(ctx.from.id)) await pool.query('UPDATE users SET referred_by=$1 WHERE telegram_id=$2 AND referred_by IS NULL',[m[1],String(ctx.from.id)]);
-  await ctx.reply('✨ Golden Card Market-এ স্বাগতম!\\n\\n🎴 Market • 💰 USDT Wallet • 👥 Refer & Earn • 🪪 KYC Verification',menu);
+  await ctx.reply('✨ Welcome to Golden Card Market!\\n\\n🎴 Marketplace • 💰 USDT Wallet • 👥 Refer & Earn • 🪪 KYC Verification',menu);
 });
-bot.command('menu', async ctx => { if (hasDb) await ensureUser(ctx); await ctx.reply(hasDb ? 'Main menu:' : '👀 Preview Mode — Database connect করলে menu-এর সব feature কাজ করবে।', menu); });
+bot.command('menu', async ctx => { if (hasDb) await ensureUser(ctx); await ctx.reply(hasDb ? 'Main menu:' : '👀 Preview Mode — Connect a database to enable all menu features.', menu); });
 bot.command('app', async ctx => { await ctx.reply('✨ Golden Card Market Mini App', menu); });
 bot.command('admin', async ctx => {
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   await ctx.reply('🔐 Admin Panel', adminMenu);
 });
 bot.command('setbkash', async ctx => {
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   const value = ctx.message.text.split(/\s+/).slice(1).join(' ').trim();
-  if (!value) return ctx.reply('ব্যবহার: /setbkash 01XXXXXXXXX');
+  if (!value) return ctx.reply('Usage: /setbkash 01XXXXXXXXX');
   await pool.query("INSERT INTO app_settings(key,value) VALUES('bkash_number',$1) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", [value]);
-  await ctx.reply('bKash নম্বর সংরক্ষণ হয়েছে।');
+  await ctx.reply('bKash number saved successfully.');
 });
 bot.command('setnagad', async ctx => {
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   const value = ctx.message.text.split(/\s+/).slice(1).join(' ').trim();
-  if (!value) return ctx.reply('ব্যবহার: /setnagad 01XXXXXXXXX');
+  if (!value) return ctx.reply('Usage: /setnagad 01XXXXXXXXX');
   await pool.query("INSERT INTO app_settings(key,value) VALUES('nagad_number',$1) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value", [value]);
-  await ctx.reply('Nagad নম্বর সংরক্ষণ হয়েছে।');
+  await ctx.reply('Nagad number saved successfully.');
 });
 bot.command('addcard', async ctx => {
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   await setState(ctx.from.id, 'card_title', {});
-  await ctx.reply('কার্ডের নাম লিখুন।');
+  await ctx.reply('Enter the card name.');
 });
 bot.action(/^cards:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
   const offset = Number(ctx.match[1]);
   const r = await pool.query('SELECT * FROM cards WHERE active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) ORDER BY id LIMIT 5 OFFSET $1', [offset]);
-  if (!r.rows.length) return ctx.reply('এখনো কার্ড যোগ করা হয়নি। Admin /addcard দিয়ে যোগ করতে পারবেন।', menu);
+  if (!r.rows.length) return ctx.reply('No cards have been added yet. An admin can add cards using /addcard.', menu);
   for (const c of r.rows) {
-    const caption = '✨ ' + c.title + '\n🆔 Card #' + c.id + '\n💰 দাম: ' + money(c.listed_for_sale ? c.listing_price : c.price) + (c.listed_for_sale ? '\n♻️ Player resale' : '');
+    const caption = '✨ ' + c.title + '\n🆔 Card #' + c.id + '\n💰 Price: ' + money(c.listed_for_sale ? c.listing_price : c.price) + (c.listed_for_sale ? '\n♻️ Player resale' : '');
     const keyboard = Markup.inlineKeyboard([[Markup.button.callback('🛒 Buy ' + money(c.price), 'buy:' + c.id)]]);
     if (c.image_file_id) await ctx.replyWithPhoto(c.image_file_id, { caption: caption, ...keyboard });
     else await ctx.reply(caption, keyboard);
   }
   const nav = [];
-  if (offset > 0) nav.push(Markup.button.callback('⬅️ আগের', 'cards:' + Math.max(0, offset - 5)));
-  if (r.rows.length === 5) nav.push(Markup.button.callback('পরের ➡️', 'cards:' + (offset + 5)));
-  if (nav.length) await ctx.reply('আরও কার্ড:', Markup.inlineKeyboard([nav]));
+  if (offset > 0) nav.push(Markup.button.callback('⬅️ Previous', 'cards:' + Math.max(0, offset - 5)));
+  if (r.rows.length === 5) nav.push(Markup.button.callback('Next ➡️', 'cards:' + (offset + 5)));
+  if (nav.length) await ctx.reply('More cards:', Markup.inlineKeyboard([nav]));
 });
 bot.action('wallet', async ctx => {
   await ctx.answerCbQuery();
@@ -414,39 +414,39 @@ bot.action('deposit', async ctx => {
   await setState(ctx.from.id, 'deposit_amount', {});
   const bkash = await setting('bkash_number');
   const nagad = await setting('nagad_number');
-  await ctx.reply('➕ Deposit\n\nbKash: ' + (bkash || 'Admin এখনো নম্বর দেননি') + '\nNagad: ' + (nagad || 'Admin এখনো নম্বর দেননি') + '\n\nটাকা পাঠানোর পর কত টাকা ডিপোজিট করেছেন লিখুন। Transaction ID দেওয়ার পর Admin যাচাই করবেন।');
+  await ctx.reply('➕ Deposit\n\nbKash: ' + (bkash || 'Not configured by admin yet') + '\nNagad: ' + (nagad || 'Not configured by admin yet') + '\n\nAfter sending the payment, enter the amount you deposited. An admin will verify your transaction ID.');
 });
 bot.action('sell', async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT id,title,price,listing_price,listed_for_sale FROM cards WHERE owner_id=$1 ORDER BY id', [String(ctx.from.id)]);
-  if (!r.rows.length) return ctx.reply('আপনার Collection খালি। আগে Marketplace থেকে কার্ড কিনুন।', menu);
+  if (!r.rows.length) return ctx.reply('Your collection is empty. Buy a card from the marketplace to get started.', menu);
   for (const c of r.rows) await ctx.reply('💸 ' + c.title + ' (#' + c.id + ')' + (c.listed_for_sale ? '\nListed at ' + money(c.listing_price) : '\nOriginal price: ' + money(c.price)),
     Markup.inlineKeyboard([[Markup.button.callback(c.listed_for_sale ? 'Cancel Listing' : 'Sell this card', 'sellcard:' + c.id)]]));
 });
 bot.action(/^sellcard:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT id,title,listed_for_sale FROM cards WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
-  if (!r.rows.length) return ctx.reply('এই কার্ডটি আপনার Collection-এ নেই।');
+  if (!r.rows.length) return ctx.reply('This card is not in your collection.');
   if (r.rows[0].listed_for_sale) {
     await pool.query('UPDATE cards SET listed_for_sale=FALSE,listing_price=NULL WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
-    return ctx.reply('✅ ' + r.rows[0].title + ' এর sale listing বাতিল হয়েছে।', menu);
+    return ctx.reply('✅ ' + r.rows[0].title + ' 's sale listing has been cancelled.', menu);
   }
   await setState(ctx.from.id, 'sell_price', { cardId: Number(ctx.match[1]), title: r.rows[0].title });
-  await ctx.reply('💸 ' + r.rows[0].title + ' কোন দামে বিক্রি করবেন? শুধু টাকার পরিমাণ লিখুন।');
+  await ctx.reply('💸 ' + r.rows[0].title + ' What price would you like to sell it for? Enter the amount only.');
 });
 bot.action('collection', async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT id,title,price FROM cards WHERE owner_id=$1 ORDER BY id', [String(ctx.from.id)]);
-  await ctx.reply(r.rows.length ? '🎴 আপনার Collection:\n' + r.rows.map(c => '#' + c.id + ' ' + c.title + ' — ' + money(c.price)).join('\n') : 'আপনার Collection খালি।', menu);
+  await ctx.reply(r.rows.length ? '🎴 Your Collection:\n' + r.rows.map(c => '#' + c.id + ' ' + c.title + ' — ' + money(c.price)).join('\n') : 'Your Collection খালি।', menu);
 });
 bot.action('transactions', async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT type,amount,details FROM transactions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 10', [String(ctx.from.id)]);
-  await ctx.reply(r.rows.length ? '📜 লেনদেন:\n' + r.rows.map(t => t.type + ': ' + money(t.amount) + ' — ' + t.details).join('\n') : 'এখনো কোনো সম্পন্ন লেনদেন নেই।');
+  await ctx.reply(r.rows.length ? '📜 লেনদেন:\n' + r.rows.map(t => t.type + ': ' + money(t.amount) + ' — ' + t.details).join('\n') : 'No completed transactions yet.');
 });
 bot.action('help', async ctx => {
   await ctx.answerCbQuery();
-  await ctx.reply('Browse Cards দিয়ে কার্ড দেখুন। Deposit দিয়ে টাকা জমার রিকোয়েস্ট পাঠান। এই MVP-তে resale ও withdrawal এখনো যোগ হয়নি।', menu);
+  await ctx.reply('Browse Cards to explore the marketplace. Use Deposit to submit a funding request. Resale and withdrawals are not yet available in this version.', menu);
 });
 bot.action(/^buy:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
@@ -454,63 +454,63 @@ bot.action(/^buy:(\d+)$/, async ctx => {
   try {
     await client.query('BEGIN');
     const cr = await client.query('SELECT * FROM cards WHERE id=$1 AND active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) FOR UPDATE', [ctx.match[1]]);
-    if (!cr.rows.length) { await client.query('ROLLBACK'); return ctx.reply('কার্ডটি আর বিক্রির জন্য নেই।'); }
+    if (!cr.rows.length) { await client.query('ROLLBACK'); return ctx.reply('This card is no longer available for sale.'); }
     const card = cr.rows[0];
     const salePrice = Number(card.listed_for_sale ? card.listing_price : card.price);
-    if (card.owner_id && String(card.owner_id) === String(ctx.from.id)) { await client.query('ROLLBACK'); return ctx.reply('এই কার্ডটি ইতিমধ্যে আপনার।'); }
+    if (card.owner_id && String(card.owner_id) === String(ctx.from.id)) { await client.query('ROLLBACK'); return ctx.reply('You already own this card.'); }
     const ur = await client.query('SELECT balance FROM users WHERE telegram_id=$1 FOR UPDATE', [String(ctx.from.id)]);
     if (!ur.rows.length || Number(ur.rows[0].balance) < salePrice) {
       await client.query('ROLLBACK');
-      return ctx.reply('পর্যাপ্ত ব্যালেন্স নেই। কার্ডের দাম ' + money(salePrice), Markup.inlineKeyboard([[Markup.button.callback('➕ Deposit', 'deposit')]]));
+      return ctx.reply('Insufficient balance. Card price: ' + money(salePrice), Markup.inlineKeyboard([[Markup.button.callback('➕ Deposit', 'deposit')]]));
     }
     await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2', [salePrice, String(ctx.from.id)]);
     if (card.owner_id) { await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2', [salePrice, card.owner_id]); await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'sale',$2,$3)", [card.owner_id, salePrice, 'Card sold: ' + card.title]); }
     await client.query('UPDATE cards SET owner_id=$1,listed_for_sale=FALSE,listing_price=NULL WHERE id=$2', [String(ctx.from.id), card.id]);
-    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)", [String(ctx.from.id), -salePrice, 'Card #' + card.id + ' কেনা হয়েছে']);
+    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)", [String(ctx.from.id), -salePrice, 'Card #' + card.id + ' purchased']);
     await client.query('COMMIT');
-    await ctx.reply('✅ কেনা সম্পন্ন! ' + card.title + ' আপনার Collection-এ যোগ হয়েছে।', menu);
+    await ctx.reply('✅ Purchase complete! ' + card.title + ' has been added to your collection.', menu);
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('purchase error', e);
-    await ctx.reply('কেনাকাটা ব্যর্থ হয়েছে। আবার চেষ্টা করুন।');
+    await ctx.reply('Purchase failed. Please try again.');
   } finally { client.release(); }
 });
 bot.action('admin:addcard', async ctx => {
   await ctx.answerCbQuery();
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   await setState(ctx.from.id, 'card_title', {});
-  await ctx.reply('কার্ডের নাম লিখুন।');
+  await ctx.reply('Enter the card name.');
 });
 bot.action('admin:settings', async ctx => {
   await ctx.answerCbQuery();
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   await ctx.reply('নম্বর সেট করুন:\n/setbkash 01XXXXXXXXX\n/setnagad 01XXXXXXXXX');
 });
 bot.action('referral',async ctx=>{
   await ctx.answerCbQuery();
-  if(!hasDb)return ctx.reply('Referral feature চালাতে database দরকার।');
+  if(!hasDb)return ctx.reply('A database connection is required to use referrals.');
   const username=botUsername||((await bot.telegram.getMe()).username),link='https://t.me/'+username+'?start=ref_'+ctx.from.id;
   const [u,c]=await Promise.all([pool.query('SELECT COUNT(*)::int AS invited FROM users WHERE referred_by=$1',[String(ctx.from.id)]),pool.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(commission_amount),0)::numeric AS earned FROM referral_commissions WHERE referrer_id=$1',[String(ctx.from.id)])]);
   return ctx.reply('👥 GOLDEN REFER & EARN\\n\\nYour invite link:\\n'+link+'\\n\\nInvited: '+u.rows[0].invited+'\\nFirst Fast Buys: '+c.rows[0].count+'\\nEarned: '+money(c.rows[0].earned)+'\\n\\n10% commission applies only to each referred user’s first Fast Buy.',Markup.inlineKeyboard([[Markup.button.callback('🪪 Start KYC','kyc:start')],[Markup.button.webApp('Open Mini App',miniAppUrl)]]));
 });
 bot.command('kyc',async ctx=>{
-  if(!hasDb)return ctx.reply('KYC চালাতে database দরকার।');
+  if(!hasDb)return ctx.reply('A database connection is required to use KYC verification.');
   await ensureUser(ctx);
   await setState(ctx.from.id,'kyc_front',{});
   return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/3: Send a clear photo of the FRONT of your own NID or passport. Then send the back, followed by a selfie holding the same ID.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
 });
 bot.action('kyc:start',async ctx=>{
-  await ctx.answerCbQuery();if(!hasDb)return ctx.reply('KYC চালাতে database দরকার।');await ensureUser(ctx);await setState(ctx.from.id,'kyc_front',{});
+  await ctx.answerCbQuery();if(!hasDb)return ctx.reply('A database connection is required to use KYC verification.');await ensureUser(ctx);await setState(ctx.from.id,'kyc_front',{});
   return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/3: Send a clear photo of the FRONT of your own NID or passport. Then send the back, followed by a selfie holding the same ID.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
 });
 bot.action('admin:kyc',async ctx=>{
-  await ctx.answerCbQuery();if(!isAdmin(ctx))return ctx.reply('⛔ Admin access নেই।');
+  await ctx.answerCbQuery();if(!isAdmin(ctx))return ctx.reply('⛔ Access denied. Admin privileges are required.');
   const r=await pool.query("SELECT id,telegram_id,created_at FROM kyc_submissions WHERE status='pending' ORDER BY id LIMIT 20");
-  if(!r.rows.length)return ctx.reply('Pending KYC নেই.');
+  if(!r.rows.length)return ctx.reply('No pending KYC submissions.');
   for(const k of r.rows)await ctx.reply('🪪 KYC #'+k.id+'\\nUser: '+k.telegram_id+'\\nSubmitted: '+new Date(k.created_at).toLocaleString(),Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','kyc:approve:'+k.id),Markup.button.callback('❌ Reject','kyc:reject:'+k.id)]]));
 });
 bot.action(/^kyc:(approve|reject):(\\d+)$/,async ctx=>{
-  await ctx.answerCbQuery();if(!isAdmin(ctx))return ctx.reply('⛔ Admin access নেই।');
+  await ctx.answerCbQuery();if(!isAdmin(ctx))return ctx.reply('⛔ Access denied. Admin privileges are required.');
   const status=ctx.match[1]==='approve'?'approved':'rejected';
   const r=await pool.query("UPDATE kyc_submissions SET status=$1,reviewed_by=$2,reviewed_at=NOW() WHERE id=$3 AND status='pending' RETURNING telegram_id",[status,String(ctx.from.id),ctx.match[2]]);
   if(!r.rows.length)return ctx.reply('KYC request already processed or not found.');
@@ -519,9 +519,9 @@ bot.action(/^kyc:(approve|reject):(\\d+)$/,async ctx=>{
 });
 bot.action('admin:pending', async ctx => {
   await ctx.answerCbQuery();
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   const r = await pool.query("SELECT * FROM deposits WHERE status='pending' ORDER BY id LIMIT 20");
-  if (!r.rows.length) return ctx.reply('Pending Deposit নেই।');
+  if (!r.rows.length) return ctx.reply('No pending deposits.');
   for (const d of r.rows) {
     await ctx.reply('Deposit #' + d.id + '\nUser: ' + d.telegram_id + '\nAmount: ' + money(d.amount) + '\nMethod: ' + d.method + '\nTransaction ID: ' + d.transaction_id,
       Markup.inlineKeyboard([[Markup.button.callback('✅ Approve', 'approve:' + d.id), Markup.button.callback('❌ Reject', 'reject:' + d.id)]]));
@@ -529,34 +529,34 @@ bot.action('admin:pending', async ctx => {
 });
 bot.action(/^approve:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
     const r = await client.query('SELECT * FROM deposits WHERE id=$1 FOR UPDATE', [ctx.match[1]]);
-    if (!r.rows.length || r.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return ctx.reply('রিকোয়েস্টটি আগে প্রসেস করা হয়েছে বা পাওয়া যায়নি।'); }
+    if (!r.rows.length || r.rows[0].status !== 'pending') { await client.query('ROLLBACK'); return ctx.reply('This request has already been processed or could not be found.'); }
     const d = r.rows[0];
     await client.query("UPDATE deposits SET status='approved',reviewed_by=$1,reviewed_at=NOW() WHERE id=$2", [String(ctx.from.id), d.id]);
     await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2', [d.amount, d.telegram_id]);
     await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'deposit',$2,$3)", [d.telegram_id, d.amount, 'Deposit #' + d.id + ' USDT approved']);
     await client.query('COMMIT');
     await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
-    await ctx.reply('Deposit #' + d.id + ' approve হয়েছে। ' + money(d.amount) + ' যোগ হয়েছে।');
-    await bot.telegram.sendMessage(String(d.telegram_id), '🎉 আপনার ' + money(d.amount) + ' ডিপোজিট approve হয়েছে।').catch(() => {});
+    await ctx.reply('Deposit #' + d.id + ' approved. ' + money(d.amount) + ' has been added to the wallet.');
+    await bot.telegram.sendMessage(String(d.telegram_id), '🎉 Your ' + money(d.amount) + ' deposit has been approved.').catch(() => {});
   } catch (e) {
     await client.query('ROLLBACK').catch(() => {});
     console.error('approve error', e);
-    await ctx.reply('Approve ব্যর্থ হয়েছে।');
+    await ctx.reply('Approval failed. Please try again.');
   } finally { client.release(); }
 });
 bot.action(/^reject:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
-  if (!isAdmin(ctx)) return ctx.reply('⛔ Admin access নেই।');
+  if (!isAdmin(ctx)) return ctx.reply('⛔ Access denied. Admin privileges are required.');
   const r = await pool.query("UPDATE deposits SET status='rejected',reviewed_by=$1,reviewed_at=NOW() WHERE id=$2 AND status='pending' RETURNING *", [String(ctx.from.id), ctx.match[1]]);
-  if (!r.rows.length) return ctx.reply('রিকোয়েস্টটি আগে প্রসেস করা হয়েছে বা পাওয়া যায়নি।');
+  if (!r.rows.length) return ctx.reply('This request has already been processed or could not be found.');
   await ctx.editMessageReplyMarkup({ inline_keyboard: [] }).catch(() => {});
-  await ctx.reply('Deposit #' + ctx.match[1] + ' reject হয়েছে।');
-  await bot.telegram.sendMessage(String(r.rows[0].telegram_id), 'আপনার Deposit Request reject হয়েছে। পেমেন্টের তথ্য Admin-এর সঙ্গে যাচাই করুন।').catch(() => {});
+  await ctx.reply('Deposit #' + ctx.match[1] + ' was rejected.');
+  await bot.telegram.sendMessage(String(r.rows[0].telegram_id), 'Your Deposit Request was rejected. Please verify your payment details with support.').catch(() => {});
 });
 bot.on('text', async ctx => {
   await ensureUser(ctx);
@@ -565,52 +565,52 @@ bot.on('text', async ctx => {
   const value = ctx.message.text.trim();
   if (st.state === 'deposit_amount') {
     const amount = Number(value);
-    if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) return ctx.reply('সঠিক USDT amount লিখুন, যেমন 10।');
+    if (!Number.isFinite(amount) || amount < 1 || amount > 1000000) return ctx.reply('Enter a valid USDT amount, for example: 10.');
     await setState(ctx.from.id, 'deposit_method', { amount });
-    return ctx.reply('কোন USDT network ব্যবহার করেছেন? TRC20, ERC20, BEP20, Polygon, Arbitrum, Optimism, Solana, TON, Avalanche অথবা Base লিখুন।');
+    return ctx.reply('Which USDT network did you use? Enter one of: TRC20, ERC20, BEP20, Polygon, Arbitrum, Optimism, Solana, TON, Avalanche, or Base.');
   }
   if (st.state === 'deposit_method') {
     const method = value.toLowerCase();
-    if (!['trc20','erc20','bep20','polygon','arbitrum','optimism','solana','ton','avalanche','base'].includes(method)) return ctx.reply('সমর্থিত USDT network-এর নাম লিখুন, যেমন TRC20।');
-    if (!(await setting('usdt_'+method))) return ctx.reply('এই network-এর wallet address Admin এখনো সেট করেননি।');
+    if (!['trc20','erc20','bep20','polygon','arbitrum','optimism','solana','ton','avalanche','base'].includes(method)) return ctx.reply('Enter a supported USDT network, such as TRC20.');
+    if (!(await setting('usdt_'+method))) return ctx.reply('The admin has not configured a wallet address for this network yet.');
     await setState(ctx.from.id, 'deposit_txid', { amount: st.data.amount, method: method });
-    return ctx.reply('এবার blockchain Transaction Hash লিখুন।');
+    return ctx.reply('Now enter the blockchain transaction hash.');
   }
   if (st.state === 'deposit_txid') {
     const txid = value.replace(/\s+/g, '');
-    if (txid.length < 20 || txid.length > 150) return ctx.reply('সঠিক blockchain Transaction Hash লিখুন।');
+    if (txid.length < 20 || txid.length > 150) return ctx.reply('Enter a valid blockchain transaction hash.');
     try {
       const r = await pool.query('INSERT INTO deposits(telegram_id,amount,method,transaction_id) VALUES($1,$2,$3,$4) RETURNING id', [String(ctx.from.id), st.data.amount, st.data.method, txid]);
       await clearState(ctx.from.id);
-      await ctx.reply('✅ Deposit Request #' + r.rows[0].id + ' জমা হয়েছে। Admin যাচাই করে approve করলে টাকা যোগ হবে।', menu);
+      await ctx.reply('✅ Deposit Request #' + r.rows[0].id + ' submitted successfully. An admin will verify it before funds are added to your wallet.', menu);
       for (const adminId of admins) {
         await bot.telegram.sendMessage(adminId, '⏳ Deposit #' + r.rows[0].id + '\nUser: ' + ctx.from.id + '\nAmount: ' + money(st.data.amount) + '\nMethod: ' + st.data.method + '\nTXID: ' + txid,
           Markup.inlineKeyboard([[Markup.button.callback('✅ Approve', 'approve:' + r.rows[0].id), Markup.button.callback('❌ Reject', 'reject:' + r.rows[0].id)]])).catch(e => console.error('admin notification error', e.message));
       }
     } catch (e) {
-      if (e.code === '23505') return ctx.reply('এই Transaction ID আগে জমা দেওয়া হয়েছে।');
+      if (e.code === '23505') return ctx.reply('This transaction ID has already been submitted.');
       console.error(e);
-      await ctx.reply('রিকোয়েস্ট জমা হয়নি। পরে আবার চেষ্টা করুন।');
+      await ctx.reply('Your request could not be submitted. Please try again later.');
     }
     return;
   }
   if (st.state === 'sell_price') {
     const price = Number(value);
-    if (!Number.isFinite(price) || price <= 0 || price > 10000000) return ctx.reply('সঠিক বিক্রয়মূল্য লিখুন।');
+    if (!Number.isFinite(price) || price <= 0 || price > 10000000) return ctx.reply('Enter a valid sale price.');
     const r = await pool.query('UPDATE cards SET listed_for_sale=TRUE,listing_price=$1 WHERE id=$2 AND owner_id=$3 RETURNING title', [price, st.data.cardId, String(ctx.from.id)]);
-    if (!r.rows.length) { await clearState(ctx.from.id); return ctx.reply('কার্ডটি আর আপনার Collection-এ নেই।'); }
+    if (!r.rows.length) { await clearState(ctx.from.id); return ctx.reply('কার্ডটি আর Your Collection-এ নেই।'); }
     await clearState(ctx.from.id);
-    return ctx.reply('✅ ' + r.rows[0].title + ' ' + money(price) + ' দামে Marketplace-এ তালিকাভুক্ত হয়েছে।', menu);
+    return ctx.reply('✅ ' + r.rows[0].title + ' ' + money(price) + ' has been listed on the marketplace for ', menu);
   }
   if (st.state === 'card_title' && isAdmin(ctx)) {
     await setState(ctx.from.id, 'card_price', { title: value });
-    return ctx.reply('কার্ডের দাম লিখুন, যেমন 450।');
+    return ctx.reply('Enter the card price, for example: 450.');
   }
   if (st.state === 'card_price' && isAdmin(ctx)) {
     const price = Number(value);
-    if (!Number.isFinite(price) || price < 0) return ctx.reply('সঠিক দাম লিখুন।');
+    if (!Number.isFinite(price) || price < 0) return ctx.reply('Enter a valid price.');
     await setState(ctx.from.id, 'card_photo', { title: st.data.title, price: price });
-    return ctx.reply('এবার কার্ডের ছবি Photo হিসেবে পাঠান।');
+    return ctx.reply('Now send the card image as a photo.');
   }
 });
 bot.on('photo',async ctx=>{
@@ -628,7 +628,7 @@ bot.on('photo',async ctx=>{
   }
   if(!st||st.state!=='card_photo'||!isAdmin(ctx))return;
   const r=await pool.query('INSERT INTO cards(title,price,image_file_id) VALUES($1,$2,$3) RETURNING id',[st.data.title,st.data.price,fileId]);
-  await clearState(ctx.from.id);await ctx.reply('✅ Card #'+r.rows[0].id+' যোগ হয়েছে।',adminMenu);
+  await clearState(ctx.from.id);await ctx.reply('✅ Card #'+r.rows[0].id+' has been added to the wallet.',adminMenu);
 });
 
 bot.catch(err => console.error('Telegram bot error', err));
