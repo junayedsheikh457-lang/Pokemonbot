@@ -13,7 +13,8 @@ const admins = new Set(process.env.ADMIN_IDS.split(',').map(s => s.trim()).filte
 const hasDb = Boolean(process.env.DATABASE_URL);
 const pool = hasDb ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined }) : null;
 const app = express();
-const currency = ' = process.env.MINI_APP_URL || 'https://pokemonbot-g5x1.onrender.com';
+const currency = '$';
+const miniAppUrl = process.env.MINI_APP_URL || 'https://pokemonbot-g5x1.onrender.com';
 const money = n => currency + Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 const isAdmin = ctx => admins.has(String(ctx.from && ctx.from.id || ''));
 const menu = Markup.inlineKeyboard([
