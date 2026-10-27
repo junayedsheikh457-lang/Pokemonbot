@@ -115,6 +115,13 @@ async function initDb() {
     }
     for (const card of additions) {
       await pool.query("INSERT INTO cards(title,price,image_file_id,description,category) SELECT $1,$2,$3,$4,$5 WHERE NOT EXISTS (SELECT 1 FROM cards WHERE LOWER(title)=LOWER($1) AND owner_id IS NULL)",[card.title,card.price,card.image,card.description,card.category]);
+      // Repair older catalogue rows that were imported without a usable image URL.
+      if (card.image && /^https?:\/\//i.test(card.image)) {
+        await pool.query(
+          "UPDATE cards SET image_file_id=$2, description=COALESCE(NULLIF(description,''),$3), category=CASE WHEN category IS NULL OR category='' OR category='Other' THEN $4 ELSE category END WHERE LOWER(title)=LOWER($1) AND owner_id IS NULL AND (image_file_id IS NULL OR image_file_id='' OR image_file_id NOT LIKE 'http%')",
+          [card.title, card.image, card.description, card.category]
+        );
+      }
     }
     await pool.query("UPDATE cards SET price = 20 + (id * 37 % 781) WHERE owner_id IS NULL AND listed_for_sale=FALSE");
     console.log('Pokémon catalogue import checked:', additions.length, 'unique names.');
