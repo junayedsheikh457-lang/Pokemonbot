@@ -33,6 +33,7 @@ async function initDb() {
   await pool.query('CREATE TABLE IF NOT EXISTS users (telegram_id BIGINT PRIMARY KEY, username TEXT, balance NUMERIC(12,2) NOT NULL DEFAULT 0)');
   await pool.query("CREATE TABLE IF NOT EXISTS cards (id BIGSERIAL PRIMARY KEY, title TEXT NOT NULL, price NUMERIC(12,2) NOT NULL CHECK(price >= 0), image_file_id TEXT, active BOOLEAN NOT NULL DEFAULT TRUE, owner_id BIGINT)");
   await pool.query("CREATE TABLE IF NOT EXISTS deposits (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), amount NUMERIC(12,2) NOT NULL CHECK(amount > 0), method TEXT NOT NULL, transaction_id TEXT NOT NULL UNIQUE, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await pool.query('ALTER TABLE deposits ADD COLUMN IF NOT EXISTS review_due_at TIMESTAMPTZ');
   await pool.query("CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), type TEXT NOT NULL, amount NUMERIC(12,2) NOT NULL, details TEXT DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS user_states (telegram_id BIGINT PRIMARY KEY, state TEXT NOT NULL, data JSONB NOT NULL DEFAULT '{}'::jsonb)");
   await pool.query('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -157,8 +158,8 @@ app.post('/api/deposits',apiAuth,async(req,res)=>{
   if(!(await setting('usdt_'+method))) return res.status(400).json({error:'Admin has not configured a wallet for this network yet.'});
   if(txid.length<20||txid.length>150) return res.status(400).json({error:'Enter the blockchain transaction hash.'});
   try {
-    const r=await pool.query('INSERT INTO deposits(telegram_id,amount,method,transaction_id) VALUES($1,$2,$3,$4) RETURNING id,amount,method,transaction_id,status,created_at',[req.tgUser.id,amount,method,txid]);
-    for(const adminId of admins) bot.telegram.sendMessage(adminId,'⏳ New Deposit #'+r.rows[0].id+'\nUser: '+req.tgUser.id+'\nAmount: '+money(amount)+'\nMethod: '+method+'\nTXID: '+txid,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','approve:'+r.rows[0].id),Markup.button.callback('❌ Reject','reject:'+r.rows[0].id)]])).catch(()=>{});
+    const r=await pool.query("INSERT INTO deposits(telegram_id,amount,method,transaction_id,review_due_at) VALUES($1,$2,$3,$4,NOW()+INTERVAL '10 minutes') RETURNING id,amount,method,transaction_id,status,created_at,review_due_at",[req.tgUser.id,amount,method,txid]);
+    for(const adminId of admins) bot.telegram.sendMessage(adminId,'⏳ New Deposit #'+r.rows[0].id+'\nUser: '+req.tgUser.id+'\nAmount: '+money(amount)+'\nMethod: '+method+'\nTXID: '+txid+'\nAdmin review target: 10 minutes',Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','approve:'+r.rows[0].id),Markup.button.callback('❌ Reject','reject:'+r.rows[0].id)]])).catch(()=>{});
     res.status(201).json({deposit:r.rows[0]});
   } catch(e) { if(e.code==='23505') return res.status(409).json({error:'This transaction ID has already been submitted.'}); console.error(e); res.status(500).json({error:'Deposit request could not be saved.'}); }
 });
