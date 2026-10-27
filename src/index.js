@@ -147,11 +147,12 @@ app.get('/api/config', async (_req,res) => {
   catch(e) { res.status(500).json({error:'Unable to load settings.'}); }
 });
 app.get('/api/me',apiAuth,async(req,res)=>{
-  const [u,t]=await Promise.all([
+  const [u,t,k] = await Promise.all([
     pool.query('SELECT telegram_id,username,balance FROM users WHERE telegram_id=$1',[req.tgUser.id]),
-    pool.query('SELECT type,amount,details,created_at FROM transactions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 20',[req.tgUser.id])
+    pool.query('SELECT type,amount,details,created_at FROM transactions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 20',[req.tgUser.id]),
+    pool.query("SELECT status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1",[req.tgUser.id])
   ]);
-  res.json({user:{id:req.tgUser.id,username:req.tgUser.username,admin:admins.has(req.tgUser.id),balance:Number(u.rows[0]?.balance||0)},transactions:t.rows.map(x=>({...x,amount:Number(x.amount)}))});
+  res.json({user:{id:req.tgUser.id,first_name:req.tgUser.first_name||'',username:req.tgUser.username,admin:admins.has(req.tgUser.id),balance:Number(u.rows[0]?.balance||0),kycStatus:k.rows[0]?.status||'not_submitted'},transactions:t.rows.map(x=>({...x,amount:Number(x.amount)}))});
 });
 app.get('/api/cards',apiAuth,async(req,res)=>{
   const r=await pool.query('SELECT * FROM cards WHERE active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) ORDER BY id DESC');
