@@ -246,6 +246,19 @@ button:active{transform:scale(.975);filter:brightness(.94)}
 .detail-art .art{height:270px!important}.detail-art .cardart.illustrated{width:166px!important;height:232px!important}.detail-art .cardcrest{font-size:78px!important}.detail-art .fantasyname{font-size:10px!important;max-width:130px}.detail-art .fantasystats{font-size:8px!important}
 .cardbody{min-width:0}.cardbody h4{overflow-wrap:anywhere}
 @media(max-width:370px){.grid{gap:6px}.art{height:139px!important}.cardart.illustrated{width:75px!important;height:112px!important}.cardcrest{font-size:37px!important}.cardbody{padding:6px}.cardbody h4{font-size:9px!important}.price{font-size:12px!important}}
+
+/* Real card artwork catalogue and polished card framing */
+.art{height:174px!important;display:flex;align-items:center;justify-content:center;padding:9px!important;background:radial-gradient(ellipse at 50% 35%,#4a3514,#0a1116 75%)!important}
+.cardart.illustrated{width:104px!important;height:150px!important;padding:0!important;display:block!important;border:2px solid #ffd66d!important;border-radius:8px!important;overflow:hidden!important;background:linear-gradient(145deg,#46300d,#101010)!important;box-shadow:0 0 0 1px #fff3,0 8px 20px #000b,0 0 16px #ffcf4a24!important;transform:rotate(-1deg)!important}
+.tcg-art{width:100%;height:100%;object-fit:contain;display:block;background:#090909}
+.image-fallback{position:absolute;inset:0;align-items:center;justify-content:center;flex-direction:column;background:radial-gradient(ellipse at 50% 35%,#71501b,#14110b 68%,#050607);color:#ffe08a}
+.image-fallback .cardcrest{font-size:37px;filter:drop-shadow(0 0 8px #ffd34e);margin-top:10px}
+.image-fallback .fantasyname{font-size:7px;letter-spacing:.6px;text-align:center;margin-top:8px;padding:0 4px}
+.image-fallback .fantasystats{font-size:6px;margin-top:6px}
+.cardart.illustrated .foil{position:absolute;inset:0;z-index:2;pointer-events:none;background:linear-gradient(115deg,transparent 18%,#fff2 28%,transparent 39%,transparent 67%,#ffcf4c0c 78%,transparent 85%)}
+.cardart.illustrated .corner{z-index:3}
+.detail-art .art{height:290px!important}.detail-art .cardart.illustrated{width:190px!important;height:265px!important}.detail-art .image-fallback .cardcrest{font-size:72px}
+@media(max-width:390px){.grid{gap:7px}.art{height:155px!important}.cardart.illustrated{width:88px!important;height:128px!important}}
 </style>
 </head>
 <body>
@@ -286,22 +299,33 @@ button:active{transform:scale(.975);filter:brightness(.94)}
 <script>
 const tg=window.Telegram?.WebApp; if(tg){tg.ready();tg.expand();try{tg.setHeaderColor('#090909');tg.setBackgroundColor('#090909')}catch(e){}}
 const cards=[
-['Golden Dragon','Dragon','🐉',450,'LEGENDARY','A legendary golden dragon said to bring fortune and strength to its owner.','120','100','90'],
-['Phoenix Guardian','Fire','🔥',700,'LEGENDARY','A reborn fire guardian with blazing wings and fearless power.','115','85','110'],
-['Storm Guardian','Storm','⚡',1200,'EPIC','A storm-born protector that commands thunder and lightning.','105','95','125'],
-['Solar Beast','Solar','🦁',1800,'EPIC','A radiant beast powered by the energy of the golden sun.','130','110','95'],
-['Shadow Wyrm','Shadow','🐲',2500,'RARE','A mysterious shadow wyrm hidden in the darkness of ancient ruins.','140','90','115'],
-['Earth Titan','Earth','🪨',3200,'RARE','An ancient titan forged from stone, earth and golden minerals.','125','145','65']
+['Charizard','Fire','🔥',4500,'LEGENDARY','The iconic Fire-type Pokémon card with a blazing Charizard illustration.','150','120','100','https://images.pokemontcg.io/base1/4.png','Base Set'],
+['Pikachu','Electric','⚡',2800,'LEGENDARY','The beloved Electric-type mascot, bright and full of energy.','60','55','120','https://images.pokemontcg.io/base1/58.png','Base Set'],
+['Mewtwo','Psychic','🔮',5200,'EPIC','A powerful Psychic Pokémon known for its extraordinary abilities.','130','100','110','https://images.pokemontcg.io/base1/10.png','Base Set'],
+['Blastoise','Water','🌊',3900,'EPIC','A powerful Water-type Pokémon with mighty hydro cannons.','120','130','78','https://images.pokemontcg.io/base1/2.png','Base Set'],
+['Lugia','Psychic','🪽',6300,'LEGENDARY','A legendary guardian of the seas and master of the skies.','130','125','110','https://images.pokemontcg.io/neo1/9.png','Neo Genesis'],
+['Gengar','Psychic','👻',3200,'EPIC','A mischievous Ghost-type Pokémon that lurks in the shadows.','110','75','110','https://images.pokemontcg.io/fossil/5.png','Fossil'],
+['Dragonite','Dragon','🐉',2700,'RARE','A friendly and powerful Dragon Pokémon known for its speed.','120','105','100','https://images.pokemontcg.io/fossil/4.png','Fossil'],
+['Mew','Psychic','✨',4800,'LEGENDARY','A mythical Pokémon said to hold the genetic secrets of all Pokémon.','100','90','120','https://images.pokemontcg.io/blackstar/8.png','Promo'],
+['Zapdos','Electric','⚡',2200,'EPIC','A legendary bird Pokémon surrounded by crackling lightning.','125','95','100','https://images.pokemontcg.io/base1/16.png','Base Set'],
+['Venusaur','Grass','🌿',4100,'EPIC','A powerful Grass-type Pokémon with a flower that absorbs sunlight.','100','120','80','https://images.pokemontcg.io/base1/15.png','Base Set'],
+['Arcanine','Fire','🔥',1900,'RARE','A noble Fire Pokémon famous for its speed and majestic presence.','105','90','115','https://images.pokemontcg.io/gym2/12.png','Gym Challenge'],
+['Gyarados','Water','🌊',2400,'RARE','A fierce Water-type Pokémon with overwhelming power.','115','95','85','https://images.pokemontcg.io/base1/6.png','Base Set'],
+['Alakazam','Psychic','🔮',2600,'RARE','A brilliant Psychic Pokémon with incredible mental power.','110','80','120','https://images.pokemontcg.io/base1/1.png','Base Set'],
+['Snorlax','Normal','💤',2100,'RARE','A relaxed giant with tremendous strength and endurance.','100','140','35','https://images.pokemontcg.io/jungle/11.png','Jungle'],
+['Ninetales','Fire','🦊',1700,'RARE','An elegant Fire Pokémon surrounded by a mysterious golden aura.','95','85','105','https://images.pokemontcg.io/base1/12.png','Base Set'],
+['Machamp','Fighting','🥊',1600,'RARE','A mighty Fighting Pokémon with four powerful arms.','115','100','75','https://images.pokemontcg.io/base1/8.png','Base Set'],
+['Clefairy','Fairy','🌙',1400,'COMMON','A sweet moonlit Pokémon treasured by collectors.','55','70','65','https://images.pokemontcg.io/base1/5.png','Base Set'],
+['Jolteon','Electric','⚡',1800,'RARE','An agile Electric Pokémon that moves like a flash of lightning.','95','75','130','https://images.pokemontcg.io/jungle/4.png','Jungle'],
+['Vaporeon','Water','💧',1800,'RARE','A graceful Water Pokémon that blends into the ocean.','90','100','85','https://images.pokemontcg.io/jungle/12.png','Jungle'],
+['Flareon','Fire','🔥',1800,'RARE','A warm-hearted Fire Pokémon with a blazing flame sac.','105','85','95','https://images.pokemontcg.io/jungle/3.png','Jungle'],
+['Eevee','Normal','🐾',900,'COMMON','A beloved Pokémon with many possible evolutions.','50','55','75','https://images.pokemontcg.io/jungle/51.png','Jungle'],
+['Butterfree','Grass','🦋',750,'COMMON','A graceful butterfly Pokémon that scatters sparkling scales.','60','60','90','https://images.pokemontcg.io/base1/33.png','Base Set'],
+['Onix','Fighting','🪨',800,'COMMON','A rock-solid Pokémon with a body like a giant stone serpent.','70','130','40','https://images.pokemontcg.io/base1/56.png','Base Set'],
+['Poliwhirl','Water','💧',850,'COMMON','A nimble Water Pokémon recognized by its swirling belly pattern.','65','70','80','https://images.pokemontcg.io/base1/33.png','Base Set']
 ];
-let category='All';const cats=['All','Legendary','Epic','Rare'];
-function art(c){const styles={
-'Golden Dragon':{icon:'🐉',class:'dragon',subtitle:'GOLDEN • DRAGON',power:'120'},
-'Phoenix Guardian':{icon:'🔥',class:'phoenix',subtitle:'PHOENIX • GUARDIAN',power:'115'},
-'Storm Guardian':{icon:'⚡',class:'storm',subtitle:'STORM • GUARDIAN',power:'105'},
-'Solar Beast':{icon:'🦁',class:'solar',subtitle:'SOLAR • BEAST',power:'130'},
-'Shadow Wyrm':{icon:'🐲',class:'shadow',subtitle:'SHADOW • WYRM',power:'140'},
-'Earth Titan':{icon:'🪨',class:'earth',subtitle:'EARTH • TITAN',power:'125'}
-};const a=styles[c[0]]||styles['Golden Dragon'];return '<div class="art art-'+a.class+'"><span class="tag">'+c[4]+'</span><div class="cardart fantasycard illustrated '+a.class+'"><div class="foil"></div><div class="corner tl">✧</div><div class="corner tr">✦</div><div class="cardcrest">'+a.icon+'</div><div class="fantasyname">'+a.subtitle+'</div><div class="fantasystats">POWER '+a.power+'</div><div class="corner bl">✦</div><div class="corner br">✧</div></div></div>'}
+let category='All';const cats=['All','Legendary','Epic','Rare','Common'];
+function art(c){const klass=(c[1]||'gold').toLowerCase().replace(/[^a-z]/g,'');const fallback='<div class="cardcrest">'+(c[2]||'✦')+'</div><div class="fantasyname">'+c[0].toUpperCase()+'</div><div class="fantasystats">HP '+(c[6]||100)+'</div>';return '<div class="art art-'+klass+'"><span class="tag">'+c[4]+'</span><div class="cardart fantasycard illustrated '+klass+'"><div class="foil"></div>'+(c[9]?'<img class="tcg-art" src="'+c[9]+'" alt="'+c[0]+' trading card" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">':'')+'<div class="image-fallback" style="'+(c[9]?'display:none':'display:flex')+'">'+fallback+'</div></div></div>'}
 function cardHtml(c,i){return '<article class="card">'+art(c)+'<div class="cardbody"><h4>'+c[0]+'</h4><div class="sub">✦ '+c[4].charAt(0)+c[4].slice(1).toLowerCase()+'</div><div class="priceRow"><span class="price">৳ '+c[3].toLocaleString('en-BD')+'</span><button class="buy" onclick="openDetails('+cards.indexOf(c)+')">Buy Card</button></div></div></article>'}
 document.getElementById('featured').innerHTML=[cards[1],cards[0],cards[2],cards[3],cards[4],cards[5]].map(cardHtml).join('');
 function renderFilters(){document.getElementById('filters').innerHTML=cats.map(c=>'<button class="filter '+(category===c?'active':'')+'" onclick="setCategory(\''+c+'\')">'+c+'</button>').join('')}
