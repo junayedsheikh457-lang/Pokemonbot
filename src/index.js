@@ -437,7 +437,7 @@ bot.action(/^sellcard:(\d+)$/, async ctx => {
 bot.action('collection', async ctx => {
   await ctx.answerCbQuery();
   const r = await pool.query('SELECT id,title,price FROM cards WHERE owner_id=$1 ORDER BY id', [String(ctx.from.id)]);
-  await ctx.reply(r.rows.length ? '🎴 Your Collection:\n' + r.rows.map(c => '#' + c.id + ' ' + c.title + ' — ' + money(c.price)).join('\n') : 'Your Collection খালি।', menu);
+  await ctx.reply(r.rows.length ? '🎴 Your Collection:\n' + r.rows.map(c => '#' + c.id + ' ' + c.title + ' — ' + money(c.price)).join('\n') : 'Your collection is empty.', menu);
 });
 bot.action('transactions', async ctx => {
   await ctx.answerCbQuery();
