@@ -237,7 +237,7 @@ async function processCardPurchase(req,res,fastBuy){
     await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2',[total,req.tgUser.id]);
     if(card.owner_id){await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[price,card.owner_id]);await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'sale',$2,$3)",[card.owner_id,price,'Card sold: '+card.title+' (#'+card.id+')']);}
     await client.query('UPDATE cards SET owner_id=$1,listed_for_sale=FALSE,listing_price=NULL WHERE id=$2',[req.tgUser.id,card.id]);
-    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)",[req.tgUser.id,-price,(fastBuy?'Fast Buy: ':'Purchased ')+card.title+' (#'+card.id+')']);
+    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)",[req.tgUser.id,-total,(fastBuy?'Fast Buy: ':'Purchased ')+card.title+' (#'+card.id+') including 0.5% fee']);
     let commission=0;
     if(fastBuy&&!ur.rows[0].first_fast_buy_done){
       await client.query('UPDATE users SET first_fast_buy_done=TRUE WHERE telegram_id=$1',[req.tgUser.id]);
