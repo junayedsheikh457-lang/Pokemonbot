@@ -344,8 +344,12 @@ bot.action('sell', async ctx => {
 });
 bot.action(/^sellcard:(\d+)$/, async ctx => {
   await ctx.answerCbQuery();
-  const r = await pool.query('SELECT id,title FROM cards WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
+  const r = await pool.query('SELECT id,title,listed_for_sale FROM cards WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
   if (!r.rows.length) return ctx.reply('এই কার্ডটি আপনার Collection-এ নেই।');
+  if (r.rows[0].listed_for_sale) {
+    await pool.query('UPDATE cards SET listed_for_sale=FALSE,listing_price=NULL WHERE id=$1 AND owner_id=$2', [ctx.match[1], String(ctx.from.id)]);
+    return ctx.reply('✅ ' + r.rows[0].title + ' এর sale listing বাতিল হয়েছে।', menu);
+  }
   await setState(ctx.from.id, 'sell_price', { cardId: Number(ctx.match[1]), title: r.rows[0].title });
   await ctx.reply('💸 ' + r.rows[0].title + ' কোন দামে বিক্রি করবেন? শুধু টাকার পরিমাণ লিখুন।');
 });
