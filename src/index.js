@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const multer = require('multer');
 const path = require('path');
 const crypto = require('crypto');
 const { Telegraf, Markup } = require('telegraf');
@@ -13,6 +14,8 @@ const admins = new Set(process.env.ADMIN_IDS.split(',').map(s => s.trim()).filte
 const hasDb = Boolean(process.env.DATABASE_URL);
 const pool = hasDb ? new Pool({ connectionString: process.env.DATABASE_URL, ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : undefined }) : null;
 const app = express();
+const allowedImageTypes=['image/jpeg','image/png','image/webp','image/gif'];
+const galleryUpload = multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024,files:1},fileFilter:(_req,file,cb)=>cb(null,allowedImageTypes.includes(file.mimetype))});
 const currency = '$';
 const miniAppUrl = process.env.MINI_APP_URL || 'https://pokemonbot-g5x1.onrender.com';
 let botUsername = process.env.BOT_USERNAME || '';
@@ -256,6 +259,18 @@ app.post('/api/admin/deposits/:id/:action',apiAuth,apiAdmin,async(req,res)=>{
 app.get('/api/admin/cards',apiAuth,apiAdmin,async(_req,res)=>{
   const r=await pool.query('SELECT * FROM cards ORDER BY id DESC LIMIT 200');
   res.json({cards:r.rows.map(publicCard)});
+});
+app.post('/api/admin/cards/upload',galleryUpload.single('image'),apiAuth,apiAdmin,async(req,res)=>{
+ try{
+  const title=String(req.body.title||'').trim(),price=Number(req.body.price),description=String(req.body.description||'').trim();
+  if(!title||title.length>120||!Number.isFinite(price)||price<0||price>10000000)return res.status(400).json({error:'Enter a card name and valid price.'});
+  if(description.length>1000)return res.status(400).json({error:'Description is too long.'});
+  if(!req.file)return res.status(400).json({error:'Choose a photo from your phone gallery.'});
+  if(!allowedImageTypes.includes(req.file.mimetype))return res.status(400).json({error:'Use a JPG, PNG, WEBP or GIF image.'});
+  const image='data:'+req.file.mimetype+';base64,'+req.file.buffer.toString('base64');
+  const r=await pool.query('INSERT INTO cards(title,price,description,image_file_id) VALUES($1,$2,$3,$4) RETURNING *',[title,price,description,image]);
+  res.status(201).json({card:publicCard(r.rows[0])});
+ }catch(e){console.error('Gallery card upload failed',e.message);res.status(500).json({error:'Could not save card photo. Please try again.'});}
 });
 app.post('/api/admin/cards',apiAuth,apiAdmin,async(req,res)=>{
   const title=String(req.body.title||'').trim(),price=Number(req.body.price),image=String(req.body.image||'').trim(),description=String(req.body.description||'').trim();
