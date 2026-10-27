@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 const { Telegraf, Markup } = require('telegraf');
 const { Pool } = require('pg');
 
@@ -34,6 +35,11 @@ async function initDb() {
   await pool.query("CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), type TEXT NOT NULL, amount NUMERIC(12,2) NOT NULL, details TEXT DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS user_states (telegram_id BIGINT PRIMARY KEY, state TEXT NOT NULL, data JSONB NOT NULL DEFAULT '{}'::jsonb)");
   await pool.query('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS listed_for_sale BOOLEAN NOT NULL DEFAULT FALSE");
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS listing_price NUMERIC(12,2)");
+  await pool.query("ALTER TABLE cards ADD COLUMN IF NOT EXISTS description TEXT NOT NULL DEFAULT ''");
+  await pool.query("CREATE INDEX IF NOT EXISTS deposits_status_created_idx ON deposits(status, created_at DESC)");
+  await pool.query("CREATE INDEX IF NOT EXISTS transactions_user_created_idx ON transactions(telegram_id, created_at DESC)");
   for (const item of [['bkash_number', process.env.BKASH_NUMBER || ''], ['nagad_number', process.env.NAGAD_NUMBER || '']]) {
     if (item[1]) await pool.query('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO NOTHING', item);
   }
@@ -53,8 +59,178 @@ async function setting(key) {
   const r = await pool.query('SELECT value FROM app_settings WHERE key=$1', [key]);
   return r.rows[0] ? r.rows[0].value : '';
 }
+app.use(express.json({ limit: '1mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
+
+// Telegram Mini App API — all account actions require validated Telegram initData.
+function verifyTelegramInitData(initData) {
+  if (!initData || !process.env.BOT_TOKEN) return null;
+  try {
+    const params = new URLSearchParams(initData);
+    const hash = params.get('hash');
+    const authDate = Number(params.get('auth_date'));
+    if (!hash || !authDate || Math.abs(Date.now()/1000 - authDate) > 86400) return null;
+    params.delete('hash');
+    const dataCheckString = [...params.entries()].sort(([a],[b]) => a.localeCompare(b)).map(([k,v]) => k + '=' + v).join('\n');
+    const secret = crypto.createHmac('sha256', 'WebAppData').update(process.env.BOT_TOKEN).digest();
+    const calculated = crypto.createHmac('sha256', secret).update(dataCheckString).digest('hex');
+    const a = Buffer.from(calculated, 'hex'), b = Buffer.from(hash, 'hex');
+    if (a.length !== b.length || !crypto.timingSafeEqual(a,b)) return null;
+    const user = JSON.parse(params.get('user') || '{}');
+    if (!user.id) return null;
+    return { id: String(user.id), username: user.username || null, first_name: user.first_name || '' };
+  } catch (_) { return null; }
+}
+async function apiAuth(req,res,next) {
+  if (!hasDb) return res.status(503).json({error:'Database is not connected.'});
+  const initData = req.get('x-telegram-init-data') || '';
+  const user = verifyTelegramInitData(initData);
+  if (!user) return res.status(401).json({error:'Open this app from the Telegram bot to sign in.'});
+  req.tgUser = user;
+  try {
+    await pool.query('INSERT INTO users(telegram_id,username) VALUES($1,$2) ON CONFLICT(telegram_id) DO UPDATE SET username=EXCLUDED.username',[user.id,user.username]);
+    next();
+  } catch(e) { console.error('API auth DB error',e.message); res.status(500).json({error:'Could not load your account.'}); }
+}
+function apiAdmin(req,res,next) {
+  if (!admins.has(String(req.tgUser.id))) return res.status(403).json({error:'Admin access only.'});
+  next();
+}
+const publicCard = c => ({id:Number(c.id),title:c.title,price:Number(c.listing_price ?? c.price),originalPrice:Number(c.price),image:c.image_file_id || null,description:c.description || '',active:c.active,ownerId:c.owner_id ? String(c.owner_id) : null,listedForSale:Boolean(c.listed_for_sale)});
+app.get('/api/config', async (_req,res) => {
+  if (!hasDb) return res.json({mode:'preview',database:false,payments:{bkash:'',nagad:''}});
+  try { res.json({mode:'live',database:true,payments:{bkash:await setting('bkash_number'),nagad:await setting('nagad_number')}}); }
+  catch(e) { res.status(500).json({error:'Unable to load settings.'}); }
+});
+app.get('/api/me',apiAuth,async(req,res)=>{
+  const [u,t]=await Promise.all([
+    pool.query('SELECT telegram_id,username,balance FROM users WHERE telegram_id=$1',[req.tgUser.id]),
+    pool.query('SELECT type,amount,details,created_at FROM transactions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 20',[req.tgUser.id])
+  ]);
+  res.json({user:{id:req.tgUser.id,username:req.tgUser.username,admin:admins.has(req.tgUser.id),balance:Number(u.rows[0]?.balance||0)},transactions:t.rows.map(x=>({...x,amount:Number(x.amount)}))});
+});
+app.get('/api/cards',apiAuth,async(req,res)=>{
+  const r=await pool.query('SELECT * FROM cards WHERE active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) ORDER BY id DESC');
+  res.json({cards:r.rows.map(publicCard)});
+});
+app.get('/api/collection',apiAuth,async(req,res)=>{
+  const r=await pool.query('SELECT * FROM cards WHERE owner_id=$1 ORDER BY id DESC',[req.tgUser.id]);
+  res.json({cards:r.rows.map(publicCard)});
+});
+app.post('/api/deposits',apiAuth,async(req,res)=>{
+  const amount=Number(req.body.amount), method=String(req.body.method||'').toLowerCase(), txid=String(req.body.transactionId||'').trim();
+  if(!Number.isFinite(amount)||amount<10||amount>1000000) return res.status(400).json({error:'Deposit amount must be between ৳10 and ৳1,000,000.'});
+  if(!['bkash','nagad'].includes(method)) return res.status(400).json({error:'Choose bKash or Nagad.'});
+  if(txid.length<6||txid.length>100) return res.status(400).json({error:'Enter a valid transaction ID.'});
+  try {
+    const r=await pool.query('INSERT INTO deposits(telegram_id,amount,method,transaction_id) VALUES($1,$2,$3,$4) RETURNING id,amount,method,transaction_id,status,created_at',[req.tgUser.id,amount,method,txid]);
+    for(const adminId of admins) bot.telegram.sendMessage(adminId,'⏳ New Deposit #'+r.rows[0].id+'\nUser: '+req.tgUser.id+'\nAmount: '+money(amount)+'\nMethod: '+method+'\nTXID: '+txid,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','approve:'+r.rows[0].id),Markup.button.callback('❌ Reject','reject:'+r.rows[0].id)]])).catch(()=>{});
+    res.status(201).json({deposit:r.rows[0]});
+  } catch(e) { if(e.code==='23505') return res.status(409).json({error:'This transaction ID has already been submitted.'}); console.error(e); res.status(500).json({error:'Deposit request could not be saved.'}); }
+});
+app.post('/api/buy/:id',apiAuth,async(req,res)=>{
+  const client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const cr=await client.query('SELECT * FROM cards WHERE id=$1 AND active=TRUE AND (owner_id IS NULL OR listed_for_sale=TRUE) FOR UPDATE',[req.params.id]);
+    if(!cr.rows.length) { await client.query('ROLLBACK'); return res.status(404).json({error:'This card is no longer available.'}); }
+    const card=cr.rows[0], price=Number(card.listed_for_sale?card.listing_price:card.price);
+    if(card.owner_id && String(card.owner_id)===req.tgUser.id) { await client.query('ROLLBACK'); return res.status(400).json({error:'You already own this card.'}); }
+    const ur=await client.query('SELECT balance FROM users WHERE telegram_id=$1 FOR UPDATE',[req.tgUser.id]);
+    if(Number(ur.rows[0]?.balance||0)<price) { await client.query('ROLLBACK'); return res.status(400).json({error:'Insufficient wallet balance. Please deposit first.'}); }
+    await client.query('UPDATE users SET balance=balance-$1 WHERE telegram_id=$2',[price,req.tgUser.id]);
+    if(card.owner_id) {
+      await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[price,card.owner_id]);
+      await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'sale',$2,$3)",[card.owner_id,price,'Card sold: '+card.title+' (#'+card.id+')']);
+    }
+    await client.query('UPDATE cards SET owner_id=$1,listed_for_sale=FALSE,listing_price=NULL WHERE id=$2',[req.tgUser.id,card.id]);
+    await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'card_purchase',$2,$3)",[req.tgUser.id,-price,'Purchased '+card.title+' (#'+card.id+')']);
+    await client.query('COMMIT');
+    res.json({ok:true,message:'Purchase complete.',card:publicCard({...card,owner_id:req.tgUser.id,listed_for_sale:false,listing_price:null}),balance:Number(ur.rows[0].balance)-price});
+  } catch(e) { await client.query('ROLLBACK').catch(()=>{}); console.error('API buy failed',e); res.status(500).json({error:'Purchase failed. Please try again.'}); }
+  finally { client.release(); }
+});
+app.post('/api/sell/:id',apiAuth,async(req,res)=>{
+  const price=Number(req.body.price);
+  if(!Number.isFinite(price)||price<=0||price>10000000) return res.status(400).json({error:'Enter a valid selling price.'});
+  const r=await pool.query('UPDATE cards SET listed_for_sale=TRUE,listing_price=$1 WHERE id=$2 AND owner_id=$3 AND active=TRUE RETURNING *',[price,req.params.id,req.tgUser.id]);
+  if(!r.rows.length) return res.status(404).json({error:'Owned card not found.'});
+  res.json({ok:true,card:publicCard(r.rows[0])});
+});
+app.post('/api/sell/:id/cancel',apiAuth,async(req,res)=>{
+  const r=await pool.query('UPDATE cards SET listed_for_sale=FALSE,listing_price=NULL WHERE id=$1 AND owner_id=$2 RETURNING id',[req.params.id,req.tgUser.id]);
+  if(!r.rows.length) return res.status(404).json({error:'Listing not found.'});
+  res.json({ok:true});
+});
+app.get('/api/admin/summary',apiAuth,apiAdmin,async(_req,res)=>{
+  const [u,c,d,s]=await Promise.all([
+    pool.query('SELECT COUNT(*)::int AS count FROM users'),
+    pool.query('SELECT COUNT(*)::int AS count FROM cards WHERE active=TRUE'),
+    pool.query("SELECT status,COUNT(*)::int AS count,COALESCE(SUM(amount),0)::numeric AS total FROM deposits GROUP BY status"),
+    pool.query("SELECT COALESCE(SUM(balance),0)::numeric AS total FROM users")
+  ]);
+  res.json({users:u.rows[0].count,cards:c.rows[0].count,walletLiability:Number(s.rows[0].total),deposits:d.rows.map(x=>({...x,total:Number(x.total)}))});
+});
+app.get('/api/admin/deposits',apiAuth,apiAdmin,async(req,res)=>{
+  const status=['pending','approved','rejected'].includes(req.query.status)?req.query.status:'pending';
+  const r=await pool.query('SELECT d.*,u.username FROM deposits d LEFT JOIN users u ON u.telegram_id=d.telegram_id WHERE d.status=$1 ORDER BY d.created_at DESC LIMIT 100',[status]);
+  res.json({deposits:r.rows.map(d=>({...d,amount:Number(d.amount),telegram_id:String(d.telegram_id)}))});
+});
+app.post('/api/admin/deposits/:id/:action',apiAuth,apiAdmin,async(req,res)=>{
+  const action=req.params.action;
+  if(!['approve','reject'].includes(action)) return res.status(400).json({error:'Invalid action.'});
+  const client=await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const r=await client.query('SELECT * FROM deposits WHERE id=$1 FOR UPDATE',[req.params.id]);
+    if(!r.rows.length||r.rows[0].status!=='pending') { await client.query('ROLLBACK'); return res.status(409).json({error:'Deposit already processed or not found.'}); }
+    const d=r.rows[0],status=action==='approve'?'approved':'rejected';
+    await client.query('UPDATE deposits SET status=$1,reviewed_by=$2,reviewed_at=NOW() WHERE id=$3',[status,req.tgUser.id,d.id]);
+    if(action==='approve') {
+      await client.query('UPDATE users SET balance=balance+$1 WHERE telegram_id=$2',[d.amount,d.telegram_id]);
+      await client.query("INSERT INTO transactions(telegram_id,type,amount,details) VALUES($1,'deposit',$2,$3)",[d.telegram_id,d.amount,'Deposit #'+d.id+' approved']);
+    }
+    await client.query('COMMIT');
+    bot.telegram.sendMessage(String(d.telegram_id),action==='approve'?'🎉 আপনার '+money(d.amount)+' deposit approve হয়েছে। Wallet update করা হয়েছে।':'আপনার Deposit #'+d.id+' reject হয়েছে। পেমেন্টের তথ্য Admin-এর সঙ্গে যাচাই করুন।').catch(()=>{});
+    res.json({ok:true,status});
+  } catch(e) { await client.query('ROLLBACK').catch(()=>{}); console.error(e); res.status(500).json({error:'Could not process deposit.'}); }
+  finally { client.release(); }
+});
+app.get('/api/admin/cards',apiAuth,apiAdmin,async(_req,res)=>{
+  const r=await pool.query('SELECT * FROM cards ORDER BY id DESC LIMIT 200');
+  res.json({cards:r.rows.map(publicCard)});
+});
+app.post('/api/admin/cards',apiAuth,apiAdmin,async(req,res)=>{
+  const title=String(req.body.title||'').trim(),price=Number(req.body.price),image=String(req.body.image||'').trim(),description=String(req.body.description||'').trim();
+  if(!title||title.length>120||!Number.isFinite(price)||price<0||price>10000000) return res.status(400).json({error:'Enter a card name and valid price.'});
+  if(image.length>2000||description.length>1000) return res.status(400).json({error:'Image URL or description is too long.'});
+  const r=await pool.query('INSERT INTO cards(title,price,description,image_file_id) VALUES($1,$2,$3,$4) RETURNING *',[title,price,description,image||null]);
+  res.status(201).json({card:publicCard(r.rows[0])});
+});
+app.patch('/api/admin/cards/:id',apiAuth,apiAdmin,async(req,res)=>{
+  const price=req.body.price===undefined?null:Number(req.body.price),active=req.body.active;
+  if(price!==null&&(!Number.isFinite(price)||price<0)) return res.status(400).json({error:'Invalid price.'});
+  const r=await pool.query('UPDATE cards SET price=COALESCE($1,price),active=COALESCE($2,active) WHERE id=$3 RETURNING *',[price,typeof active==='boolean'?active:null,req.params.id]);
+  if(!r.rows.length) return res.status(404).json({error:'Card not found.'});
+  res.json({card:publicCard(r.rows[0])});
+});
+app.get('/api/admin/users',apiAuth,apiAdmin,async(_req,res)=>{
+  const r=await pool.query('SELECT u.telegram_id,u.username,u.balance,COUNT(c.id)::int AS owned FROM users u LEFT JOIN cards c ON c.owner_id=u.telegram_id GROUP BY u.telegram_id ORDER BY u.telegram_id DESC LIMIT 200');
+  res.json({users:r.rows.map(u=>({...u,telegram_id:String(u.telegram_id),balance:Number(u.balance)}))});
+});
+app.get('/api/admin/settings',apiAuth,apiAdmin,async(_req,res)=>{
+  res.json({bkash:await setting('bkash_number'),nagad:await setting('nagad_number')});
+});
+app.put('/api/admin/settings',apiAuth,apiAdmin,async(req,res)=>{
+  for(const key of ['bkash','nagad']) {
+    const value=String(req.body[key]||'').trim();
+    if(value.length>40) return res.status(400).json({error:'Payment number is too long.'});
+    await pool.query('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value',[key==='bkash'?'bkash_number':'nagad_number',value]);
+  }
+  res.json({ok:true});
+});
+
 app.get('/health', async (_req, res) => {
   if (!hasDb) return res.json({ ok: true, mode: 'preview', database: 'not_configured' });
   try { await pool.query('SELECT 1'); res.json({ ok: true, database: 'connected' }); }
