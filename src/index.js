@@ -511,13 +511,15 @@ bot.on('photo', async ctx => {
   await ctx.reply('✅ Card #' + r.rows[0].id + ' যোগ হয়েছে।', adminMenu);
 });
 bot.catch(err => console.error('Telegram bot error', err));
+const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET || crypto.createHash('sha256').update(process.env.BOT_TOKEN).digest('hex').slice(0, 32);
+const webhookPath = '/telegram-webhook/' + webhookSecret;
+app.use(webhookPath, bot.webhookCallback(webhookPath, { secretToken: webhookSecret }));
 (async () => {
   if (hasDb) await initDb();
   else console.log('Starting in preview mode: DATABASE_URL is not set');
   app.listen(Number(process.env.PORT || 3000), () => console.log('Health server listening'));
-  await bot.launch();
-  console.log('Golden Card Market bot started');
+  await bot.telegram.setWebhook(miniAppUrl + webhookPath, { secret_token: webhookSecret, drop_pending_updates: false });
+  console.log('Golden Card Market bot started (webhook mode)');
 })().catch(err => { console.error('Startup failed', err); process.exit(1); });
 process.once('SIGINT', () => bot.stop('SIGINT'));
 process.once('SIGTERM', () => bot.stop('SIGTERM'));
-;
