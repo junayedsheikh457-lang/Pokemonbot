@@ -259,17 +259,46 @@ button:active{transform:scale(.975);filter:brightness(.94)}
 .cardart.illustrated .corner{z-index:3}
 .detail-art .art{height:290px!important}.detail-art .cardart.illustrated{width:190px!important;height:265px!important}.detail-art .image-fallback .cardcrest{font-size:72px}
 @media(max-width:390px){.grid{gap:7px}.art{height:155px!important}.cardart.illustrated{width:88px!important;height:128px!important}}
+
+/* Golden Card Market premium reference-inspired refinements */
+:root{--bg:#030506;--panel:#071018;--panel2:#0b141d;--gold:#f5c64f;--gold2:#ffe79b;--muted:#aab6c4;--line:#5c4823;--white:#f8f6ef}
+body{background:radial-gradient(ellipse at 50% -10%,#38270c 0,transparent 40%),#030506}
+.top{border-bottom:1px solid #6b5226}
+.logo{background:linear-gradient(145deg,#fff0a8,#bf8520);color:#120d03;box-shadow:0 0 22px #f3c34b35}
+.brand h1{letter-spacing:.2px}
+.pill,.filter{border-color:#564523}
+.goldbtn,.buy{background:linear-gradient(180deg,#ffe17a,#e8a928);color:#1b1203;border:1px solid #ffdc78;box-shadow:0 3px 12px #e8ae2720}
+.ghostbtn,.field,.searchbar,.rowbox,.walletbox,.meta-grid>div,.power-grid>div{border-color:#314252;background:linear-gradient(145deg,#0b1721,#050a0f)}
+.hero{border:1px solid #8b6829;box-shadow:inset 0 1px #fff2,0 12px 30px #0008;background:radial-gradient(ellipse at 20% 35%,#4a320e 0,transparent 42%),linear-gradient(125deg,#080a0b,#11100c 65%,#030506)}
+.hero h2{color:#ffe08a;text-shadow:0 0 18px #e7b74330}
+.grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.card{border:1px solid #5e4a25;border-radius:11px;background:linear-gradient(155deg,#111820,#05090d);overflow:hidden;box-shadow:0 7px 18px #0008}
+.art{height:148px!important;background:radial-gradient(ellipse at 50% 35%,#51390f,#05080c 76%)!important}
+.cardart.illustrated{width:calc(100% - 14px)!important;height:128px!important;border-radius:7px!important}
+.cardbody{padding:8px!important}
+.cardbody h4{font-size:11px!important;line-height:1.25}
+.cardbody .sub{font-size:9px!important}
+.priceRow{display:flex;flex-direction:column;align-items:stretch;gap:6px}
+.price{font-size:12px!important;color:#ffd34f}
+.buy{font-size:10px!important;padding:7px 3px!important;border-radius:7px!important}
+.bottom{background:#030609ed;border-top:1px solid #51401f;backdrop-filter:blur(16px)}
+.bottom .nav button.active{color:#ffd65b}
+.sectionhead h3{color:#ffdf80}
+.detail-art{border:1px solid #705522;border-radius:13px;background:radial-gradient(ellipse at center,#34250d,#040608 70%)}
+.detail-title strong{color:#ffdb63}
+.notice{border-color:#4c3a1d;background:#0b1015}
+@media(max-width:370px){.grid{gap:6px}.art{height:130px!important}.cardart.illustrated{height:112px!important}.cardbody{padding:6px!important}}
 </style>
 </head>
 <body>
 <div class="wrap">
-<header class="top"><div class="brand"><div class="logo">♛</div><div><h1>GOLDEN CARD</h1><small>COLLECT • TRADE • OWN</small></div></div><div class="pill">✦ DEMO MODE</div></header>
+<header class="top"><div class="brand"><div class="logo">♛</div><div><h1>GOLDEN CARD</h1><small>COLLECT • TRADE • OWN</small></div></div><div class="pill">✦ GOLD MEMBER</div></header>
 <section id="home" class="page active">
-<div class="hero"><div class="eyebrow">Rare collection</div><h2>Rare Golden<br>Legendary Cards</h2><p>Collect rare golden cards. Buy, sell and grow your collection.</p><button class="goldbtn" onclick="go('market')">Explore Cards&nbsp; →</button></div>
+<div class="hero"><div class="eyebrow">✦ GOLDEN CARD MARKET</div><h2>Collect<br>Trade<br>Earn</h2><p>Rare Cards<br>Real Value</p><button class="goldbtn" onclick="go('market')">Explore Cards&nbsp; →</button></div>
 <div class="stats"><div class="stat"><b>6</b><span>Golden cards</span></div><div class="stat"><b>৳450</b><span>Starting price</span></div><div class="stat"><b>Demo</b><span>Marketplace</span></div></div>
 <div class="sectionhead"><h3>Featured Golden Cards</h3><button onclick="go('market')">View All →</button></div>
 <div class="grid" id="featured"></div>
-<div class="notice">✨ <b>Preview only:</b> এগুলো sample card ও demo price। এখনো কোনো real payment বা purchase হবে না। পরে database connect করে আসল catalog চালু করা যাবে।</div>
+<div class="notice">✨ <b>Golden Card Market</b><br>Rare cards, unique power. Build your collection and explore the marketplace.</div>
 </section>
 
 <section id="details" class="page"><div class="sectionhead"><button onclick="go('market')">← Back to Cards</button><h3>Card Details</h3></div><div id="detailcontent"></div></section>
@@ -277,14 +306,14 @@ button:active{transform:scale(.975);filter:brightness(.94)}
 <section id="submitted" class="page"><div class="empty"><div style="font-size:50px;color:#ffcf45">✓</div><h3>Deposit Request Submitted!</h3><p>This is a demo request. No money was transferred.</p><div id="depositSummary"></div><button class="goldbtn wide" onclick="go('home')">⌂ Back to Home</button></div></section>
 <section id="transactions" class="page"><div class="sectionhead"><h3>Transaction History</h3></div><div class="rowbox">No real transactions yet <span>DEMO</span></div><div class="notice">Transactions will appear after database integration.</div></section>
 <section id="sell" class="page"><div class="sectionhead"><h3>Sell Card</h3></div><div class="notice">List a card from your collection for resale. Demo only.</div><label>Select card</label><select id="sellcard" class="field"></select><label>Your price (৳)</label><input class="field" id="sellprice" type="number" placeholder="Enter asking price"><button class="goldbtn wide" onclick="modal('Demo listing','Your listing is not saved. Database integration is required.')">List for Sale</button></section>
-<section id="admin" class="page"><div class="sectionhead"><h3>Admin Panel</h3><span class="pill">DEMO</span></div><div class="filters"><button class="filter active">Pending (3)</button><button class="filter" onclick="modal('Cards','Card management will connect later.')">Cards</button><button class="filter" onclick="modal('Users','User management is demo only.')">Users</button><button class="filter" onclick="modal('Settings','Payment settings will be added after backend setup.')">Settings</button></div><h4>Deposit Approvals</h4><div class="rowbox"><span>👤 User #1024<br>৳500.00 (bKash)<br><small>Pending approval</small></span><button class="goldbtn" onclick="modal('Demo approval','No real wallet balance changed.')">Approve</button><button class="ghostbtn" onclick="modal('Demo rejection','No real request was changed.')">Reject</button></div><div class="rowbox"><span>👤 User #0876<br>৳1,200.00 (Nagad)</span><button class="goldbtn" onclick="modal('Demo approval','No real wallet balance changed.')">Approve</button><button class="ghostbtn" onclick="modal('Demo rejection','No real request was changed.')">Reject</button></div><div class="notice">Admin actions are mockups only.</div></section>
+<section id="admin" class="page"><div class="sectionhead"><h3>Admin Panel</h3><span class="pill">ADMIN</span></div><div class="filters"><button class="filter active">Pending (3)</button><button class="filter" onclick="modal('Cards','Card management will connect later.')">Cards</button><button class="filter" onclick="modal('Users','User management is demo only.')">Users</button><button class="filter" onclick="modal('Settings','Payment settings will be added after backend setup.')">Settings</button></div><h4>Deposit Approvals</h4><div class="rowbox"><span>👤 User #1024<br>৳500.00 (bKash)<br><small>Pending approval</small></span><button class="goldbtn" onclick="modal('Demo approval','No real wallet balance changed.')">Approve</button><button class="ghostbtn" onclick="modal('Demo rejection','No real request was changed.')">Reject</button></div><div class="rowbox"><span>👤 User #0876<br>৳1,200.00 (Nagad)</span><button class="goldbtn" onclick="modal('Demo approval','No real wallet balance changed.')">Approve</button><button class="ghostbtn" onclick="modal('Demo rejection','No real request was changed.')">Reject</button></div><div class="notice">Admin actions are mockups only.</div></section>
 <section id="support" class="page"><div class="sectionhead"><h3>Support</h3></div><div class="empty">Need help with cards or payments?<br><br><button class="goldbtn" onclick="modal('Support','Support chat will be connected later.')">Contact Support</button></div></section>
 
 <section id="market" class="page">
-<div class="sectionhead"><h3>Golden Cards</h3><span class="pill">6 CARDS</span></div><div class="searchbar"><span>⌕</span><input id="cardsearch" type="search" placeholder="Search cards, type or rarity..." oninput="renderCatalog()" aria-label="Search cards"></div><div class="filters" id="filters"></div><div class="grid" id="catalog"></div>
+<div class="sectionhead"><h3>Card Collection</h3><span class="pill">RARE CARDS</span></div><div class="searchbar"><span>⌕</span><input id="cardsearch" type="search" placeholder="Search cards, type or rarity..." oninput="renderCatalog()" aria-label="Search cards"></div><div class="filters" id="filters"></div><div class="grid" id="catalog"></div>
 </section>
 <section id="wallet" class="page">
-<div class="sectionhead"><h3>My Wallet</h3><span class="pill">DEMO</span></div>
+<div class="sectionhead"><h3>My Wallet</h3><span class="pill">SECURE</span></div>
 <div class="walletbox"><span>AVAILABLE BALANCE</span><h2>৳0.00</h2><div class="actions"><button class="goldbtn" onclick="go('deposit')">＋ Add Funds</button><button class="ghostbtn" onclick="modal('Wallet history','Demo mode-এ এখনো কোনো real transaction নেই।')">History</button></div></div>
 <div class="notice">🔒 নিরাপত্তার জন্য পেমেন্টের টাকা Admin যাচাই করে approve না করা পর্যন্ত wallet-এ যোগ হবে না।</div>
 </section>
