@@ -71,7 +71,7 @@ async function initDb() {
     ];
     for (const c of seedCards) await pool.query('INSERT INTO cards(title,price,image_file_id,description) VALUES($1,$2,$3,$4)', c);
   }
-  for (const item of [['bkash_number', process.env.BKASH_NUMBER || ''], ['nagad_number', process.env.NAGAD_NUMBER || '']]) {
+  for (const item of [["usdt_trc20",""],["usdt_erc20",""],["usdt_bep20",""],["usdt_polygon",""],["usdt_arbitrum",""],["usdt_optimism",""],["usdt_solana",""],["usdt_ton",""],["usdt_avalanche",""],["usdt_base",""]]) {
     if (item[1]) await pool.query('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO NOTHING', item);
   }
 }
@@ -130,8 +130,8 @@ function apiAdmin(req,res,next) {
 }
 const publicCard = c => ({id:Number(c.id),title:c.title,price:Number(c.listing_price ?? c.price),originalPrice:Number(c.price),image:c.image_file_id || null,description:c.description || '',active:c.active,ownerId:c.owner_id ? String(c.owner_id) : null,listedForSale:Boolean(c.listed_for_sale)});
 app.get('/api/config', async (_req,res) => {
-  if (!hasDb) return res.json({mode:'preview',database:false,payments:{bkash:'',nagad:''}});
-  try { res.json({mode:'live',database:true,payments:{bkash:await setting('bkash_number'),nagad:await setting('nagad_number')}}); }
+  if (!hasDb) return res.json({mode:'preview',database:false,payments:{networks:{}}});
+  try { const entries=await Promise.all(["trc20","erc20","bep20","polygon","arbitrum","optimism","solana","ton","avalanche","base"].map(async k=>[k,await setting('usdt_'+k)])); res.json({mode:'live',database:true,payments:{networks:Object.fromEntries(entries)}}); }
   catch(e) { res.status(500).json({error:'Unable to load settings.'}); }
 });
 app.get('/api/me',apiAuth,async(req,res)=>{
@@ -151,9 +151,11 @@ app.get('/api/collection',apiAuth,async(req,res)=>{
 });
 app.post('/api/deposits',apiAuth,async(req,res)=>{
   const amount=Number(req.body.amount), method=String(req.body.method||'').toLowerCase(), txid=String(req.body.transactionId||'').trim();
-  if(!Number.isFinite(amount)||amount<10||amount>1000000) return res.status(400).json({error:'Deposit amount must be between ৳10 and ৳1,000,000.'});
-  if(!['bkash','nagad'].includes(method)) return res.status(400).json({error:'Choose bKash or Nagad.'});
-  if(txid.length<6||txid.length>100) return res.status(400).json({error:'Enter a valid transaction ID.'});
+  if(!Number.isFinite(amount)||amount<10||amount>1000000) return res.status(400).json({error:'Deposit amount must be between 1 and 1,000,000 USDT.'});
+  const supportedNetworks=["trc20","erc20","bep20","polygon","arbitrum","optimism","solana","ton","avalanche","base"];
+  if(!supportedNetworks.includes(method)) return res.status(400).json({error:'Choose a supported USDT network.'});
+  if(!(await setting('usdt_'+method))) return res.status(400).json({error:'Admin has not configured a wallet for this network yet.'});
+  if(txid.length<20||txid.length>150) return res.status(400).json({error:'Enter the blockchain transaction hash.'});
   try {
     const r=await pool.query('INSERT INTO deposits(telegram_id,amount,method,transaction_id) VALUES($1,$2,$3,$4) RETURNING id,amount,method,transaction_id,status,created_at',[req.tgUser.id,amount,method,txid]);
     for(const adminId of admins) bot.telegram.sendMessage(adminId,'⏳ New Deposit #'+r.rows[0].id+'\nUser: '+req.tgUser.id+'\nAmount: '+money(amount)+'\nMethod: '+method+'\nTXID: '+txid,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','approve:'+r.rows[0].id),Markup.button.callback('❌ Reject','reject:'+r.rows[0].id)]])).catch(()=>{});
@@ -251,14 +253,12 @@ app.get('/api/admin/users',apiAuth,apiAdmin,async(_req,res)=>{
   res.json({users:r.rows.map(u=>({...u,telegram_id:String(u.telegram_id),balance:Number(u.balance)}))});
 });
 app.get('/api/admin/settings',apiAuth,apiAdmin,async(_req,res)=>{
-  res.json({bkash:await setting('bkash_number'),nagad:await setting('nagad_number')});
+  const entries=await Promise.all(["trc20","erc20","bep20","polygon","arbitrum","optimism","solana","ton","avalanche","base"].map(async k=>[k,await setting('usdt_'+k)])); res.json({networks:Object.fromEntries(entries)});
 });
 app.put('/api/admin/settings',apiAuth,apiAdmin,async(req,res)=>{
-  for(const key of ['bkash','nagad']) {
-    const value=String(req.body[key]||'').trim();
-    if(value.length>40) return res.status(400).json({error:'Payment number is too long.'});
-    await pool.query('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value',[key==='bkash'?'bkash_number':'nagad_number',value]);
-  }
+  const allowed=["trc20","erc20","bep20","polygon","arbitrum","optimism","solana","ton","avalanche","base"];
+  if(!req.body.networks||typeof req.body.networks!=='object') return res.status(400).json({error:'USDT wallet addresses are required.'});
+  for(const key of allowed) { const value=String(req.body.networks[key]||'').trim(); if(value.length>180) return res.status(400).json({error:'Wallet address is too long for '+key+'.'}); await pool.query('INSERT INTO app_settings(key,value) VALUES($1,$2) ON CONFLICT(key) DO UPDATE SET value=EXCLUDED.value',['usdt_'+key,value]); }
   res.json({ok:true});
 });
 
