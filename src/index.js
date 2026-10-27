@@ -137,6 +137,32 @@ function apiAdmin(req,res,next) {
   next();
 }
 const publicCard = c => ({id:Number(c.id),title:c.title,price:Number(c.listing_price ?? c.price),originalPrice:Number(c.price),image:c.image_file_id || null,description:c.description || '',active:c.active,ownerId:c.owner_id ? String(c.owner_id) : null,listedForSale:Boolean(c.listed_for_sale)});
+app.post('/api/kyc',apiAuth,async(req,res)=>{
+ try{
+  const images=[req.body.front,req.body.back,req.body.selfie];
+  const labels=['ID FRONT','ID BACK','SELFIE HOLDING ID'];
+  const valid=x=>typeof x==='string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(x);
+  if(images.some(x=>!valid(x)))return res.status(400).json({error:'Choose all 3 JPG, PNG or WEBP photos.'});
+  if(images.some(x=>Buffer.byteLength(x.split(',')[1],'base64')>5*1024*1024))return res.status(400).json({error:'Each photo must be 5 MB or smaller.'});
+  const existing=await pool.query("SELECT id FROM kyc_submissions WHERE telegram_id=$1 AND status='pending' LIMIT 1",[req.tgUser.id]);
+  if(existing.rows.length)return res.status(409).json({error:'Your KYC is already pending admin review.'});
+  const firstAdmin=[...admins][0];
+  if(!firstAdmin)return res.status(503).json({error:'KYC review is not configured. Contact support.'});
+  const ids=[];
+  for(let i=0;i<images.length;i++){
+   const m=images[i].match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+   const ext=m[1].split('/')[1]==='jpeg'?'jpg':m[1].split('/')[1];
+   const sent=await bot.telegram.sendPhoto(firstAdmin,{source:Buffer.from(m[2],'base64'),filename:'kyc-'+labels[i].toLowerCase().replace(/ /g,'-')+'.'+ext},{caption:'KYC upload · '+labels[i]+' · Telegram user '+req.tgUser.id});
+   ids.push(sent.photo[sent.photo.length-1].file_id);
+  }
+  const saved=await pool.query("INSERT INTO kyc_submissions(telegram_id,front_file_id,back_file_id,selfie_file_id) VALUES($1,$2,$3,$4) RETURNING id",[req.tgUser.id,...ids]);
+  for(const adminId of admins){
+   if(String(adminId)!==String(firstAdmin))for(let i=0;i<ids.length;i++)await bot.telegram.sendPhoto(adminId,ids[i],{caption:'KYC #'+saved.rows[0].id+' · '+labels[i]+' · User '+req.tgUser.id}).catch(()=>{});
+   await bot.telegram.sendMessage(adminId,'🪪 New Mini App KYC #'+saved.rows[0].id+' · User '+req.tgUser.id,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','kyc:approve:'+saved.rows[0].id),Markup.button.callback('❌ Reject','kyc:reject:'+saved.rows[0].id)]])).catch(()=>{});
+  }
+  res.status(201).json({ok:true,id:saved.rows[0].id});
+ }catch(e){console.error('Mini App KYC upload failed',e.message);res.status(500).json({error:'KYC upload failed. Check your connection and try again.'});}
+});
 app.get('/api/referrals',apiAuth,async(req,res)=>{
   const [u,c]=await Promise.all([pool.query('SELECT COUNT(*)::int AS count FROM users WHERE referred_by=$1',[req.tgUser.id]),pool.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(commission_amount),0)::numeric AS total FROM referral_commissions WHERE referrer_id=$1',[req.tgUser.id])]);
   res.json({referralLink:botUsername?'https://t.me/'+botUsername+'?start=ref_'+req.tgUser.id:'',invited:u.rows[0].count,commissionCount:c.rows[0].count,earned:Number(c.rows[0].total)});
