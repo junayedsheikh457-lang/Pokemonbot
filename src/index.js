@@ -104,7 +104,7 @@ async function initDb() {
       if (seen.has(key)) continue;
       seen.add(key);
       const category = (Array.isArray(card.types) && card.types[0]) || card.element || card.type || 'Other';
-      const image = card.originalImageUrl || card.imageUrl || card.image || null;
+      const image = card.images?.large || card.images?.small || card.originalImageUrl || card.imageUrl || card.image || null;
       const setName = card.set?.name || card.setName || 'Pokémon TCG';
       const number = card.number ? ' #' + card.number : '';
       const rarity = card.rarity ? ' Rarity: ' + card.rarity + '.' : '';
