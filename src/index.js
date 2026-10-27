@@ -254,6 +254,21 @@ app.get('/api/admin/summary',apiAuth,apiAdmin,async(_req,res)=>{
   ]);
   res.json({users:u.rows[0].count,cards:c.rows[0].count,walletLiability:Number(s.rows[0].total),deposits:d.rows.map(x=>({...x,total:Number(x.total)}))});
 });
+app.get('/api/admin/kyc',apiAuth,apiAdmin,async(req,res)=>{
+  const status=['pending','approved','rejected'].includes(req.query.status)?req.query.status:'pending';
+  const r=await pool.query('SELECT k.id,k.telegram_id,k.status,k.created_at,k.reviewed_at,u.username FROM kyc_submissions k LEFT JOIN users u ON u.telegram_id=k.telegram_id WHERE k.status=$1 ORDER BY k.created_at DESC LIMIT 100',[status]);
+  res.json({submissions:r.rows.map(k=>({...k,telegram_id:String(k.telegram_id)}))});
+});
+app.post('/api/admin/kyc/:id/:action',apiAuth,apiAdmin,async(req,res)=>{
+  const action=req.params.action;
+  if(!['approve','reject'].includes(action))return res.status(400).json({error:'Invalid action.'});
+  const status=action==='approve'?'approved':'rejected';
+  const r=await pool.query("UPDATE kyc_submissions SET status=$1,reviewed_by=$2,reviewed_at=NOW() WHERE id=$3 AND status='pending' RETURNING telegram_id",[status,req.tgUser.id,req.params.id]);
+  if(!r.rows.length)return res.status(409).json({error:'KYC request already processed or not found.'});
+  const message=status==='approved'?'✅ Your KYC has been approved.':'KYC review rejected. Contact support if needed.';
+  bot.telegram.sendMessage(String(r.rows[0].telegram_id),message).catch(()=>{});
+  res.json({ok:true,status});
+});
 app.get('/api/admin/deposits',apiAuth,apiAdmin,async(req,res)=>{
   const status=['pending','approved','rejected'].includes(req.query.status)?req.query.status:'pending';
   const r=await pool.query('SELECT d.*,u.username FROM deposits d LEFT JOIN users u ON u.telegram_id=d.telegram_id WHERE d.status=$1 ORDER BY d.created_at DESC LIMIT 100',[status]);
