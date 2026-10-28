@@ -438,6 +438,7 @@ bot.use(async (ctx, next) => {
 });
 
 const startMenu = Markup.inlineKeyboard([
+  [Markup.button.callback('🪪 KYC Verify · Send NID Here', 'kyc:start')],
   [Markup.button.webApp('🌐 Open Golden Card Market', miniAppUrl)]
 ]);
 bot.start(async ctx => {
