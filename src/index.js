@@ -20,11 +20,11 @@ const money = n => currency + Number(n).toLocaleString('en-US', { maximumFractio
 const isAdmin = ctx => admins.has(String(ctx.from && ctx.from.id || ''));
 const menu = Markup.inlineKeyboard([
   [Markup.button.webApp('✨ Open Golden Card Mini App', miniAppUrl)],
+  [Markup.button.callback('🪪 KYC Verify · Send NID in Chat', 'kyc:start')],
   [Markup.button.callback('🎴 Browse Cards', 'cards:0'), Markup.button.callback('💰 Wallet', 'wallet')],
   [Markup.button.callback('➕ Deposit', 'deposit'), Markup.button.callback('🗂 My Collection', 'collection')],
   [Markup.button.callback('💸 Sell Cards', 'sell')],
   [Markup.button.callback('👥 Refer & Earn', 'referral')],
-  [Markup.button.callback('🪪 Submit NID for Review (Chat)', 'kyc:start')],
   [Markup.button.callback('ℹ️ Help', 'help')]
 ]);
 const adminMenu = Markup.inlineKeyboard([
