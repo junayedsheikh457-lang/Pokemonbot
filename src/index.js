@@ -604,7 +604,7 @@ bot.command('kyc',async ctx=>{
   if(!hasDb)return ctx.reply('A database connection is required to use KYC verification.');
   await ensureUser(ctx);
   await setState(ctx.from.id,'kyc_front',{});
-  return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/3: Send a clear photo of the FRONT of your own NID or passport. Then send the back, followed by a selfie holding the same ID.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
+  return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/2: Send a clear photo of the FRONT of your own NID. Then send the BACK photo in this chat. Your photos will be sent to the admin for review.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
 });
 bot.action('kyc:start',async ctx=>{
   await ctx.answerCbQuery();if(!hasDb)return ctx.reply('A database connection is required to use KYC verification.');await ensureUser(ctx);await setState(ctx.from.id,'kyc_front',{});
@@ -727,13 +727,17 @@ bot.on('text', async ctx => {
 bot.on('photo',async ctx=>{
   if(!hasDb)return;
   const st=await getState(ctx.from.id),photos=ctx.message.photo,fileId=photos[photos.length-1].file_id;
-  if(st&&['kyc_front','kyc_back','kyc_selfie'].includes(st.state)){
-    if(st.state==='kyc_front'){await setState(ctx.from.id,'kyc_back',{front:fileId});return ctx.reply('Front received. Send the BACK of the same ID.');}
-    if(st.state==='kyc_back'){await setState(ctx.from.id,'kyc_selfie',{front:st.data.front,back:fileId});return ctx.reply('Back received. Send a selfie holding the same ID clearly beside your face.');}
+  if(st&&['kyc_front','kyc_back'].includes(st.state)){
+    if(st.state==='kyc_front'){await setState(ctx.from.id,'kyc_back',{front:fileId});return ctx.reply('✅ NID front photo received. Now send the BACK photo here in this Telegram chat.');}
     try{
-      const r=await pool.query("INSERT INTO kyc_submissions(telegram_id,front_file_id,back_file_id,selfie_file_id) VALUES($1,$2,$3,$4) RETURNING id",[String(ctx.from.id),st.data.front,st.data.back,fileId]);
-      await clearState(ctx.from.id);await ctx.reply('✅ KYC submitted. Admin will review your photos.');
-      for(const adminId of admins){await bot.telegram.sendPhoto(adminId,st.data.front,{caption:'KYC #'+r.rows[0].id+' FRONT · User '+ctx.from.id}).catch(()=>{});await bot.telegram.sendPhoto(adminId,st.data.back,{caption:'KYC #'+r.rows[0].id+' BACK · User '+ctx.from.id}).catch(()=>{});await bot.telegram.sendPhoto(adminId,fileId,{caption:'KYC #'+r.rows[0].id+' SELFIE HOLDING ID · User '+ctx.from.id,reply_markup:{inline_keyboard:[[{text:'Approve',callback_data:'kyc:approve:'+r.rows[0].id},{text:'Reject',callback_data:'kyc:reject:'+r.rows[0].id}]]}}).catch(()=>{});}
+      const existing=await pool.query("SELECT id,status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1",[String(ctx.from.id)]);
+      if(existing.rows.length){await clearState(ctx.from.id);return ctx.reply(existing.rows[0].status==='pending'?'Your KYC is already waiting for admin review.':'Your KYC was already submitted. Please contact support if you need to update it.');}
+      const saved=await pool.query("INSERT INTO kyc_submissions(telegram_id,front_file_id,back_file_id,selfie_file_id) VALUES($1,$2,$3,NULL) RETURNING id",[String(ctx.from.id),st.data.front,fileId]);
+      const kycId=saved.rows[0].id;await clearState(ctx.from.id);await ctx.reply('✅ KYC submitted successfully. Your NID front and back photos have been sent to the admin for review.');
+      for(const adminId of admins){
+        await bot.telegram.sendPhoto(adminId,st.data.front,{caption:'KYC #'+kycId+' · NID FRONT · User '+ctx.from.id}).catch(()=>{});
+        await bot.telegram.sendPhoto(adminId,fileId,{caption:'KYC #'+kycId+' · NID BACK · User '+ctx.from.id,reply_markup:{inline_keyboard:[[{text:'✅ Approve',callback_data:'kyc:approve:'+kycId},{text:'❌ Reject',callback_data:'kyc:reject:'+kycId}]]}}).catch(()=>{});
+      }
     }catch(e){console.error('KYC submit failed',e);return ctx.reply('KYC submission failed. Please try again.');}
     return;
   }
