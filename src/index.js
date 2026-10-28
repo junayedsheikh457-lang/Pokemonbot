@@ -147,7 +147,7 @@ async function setting(key) {
   const r = await pool.query('SELECT value FROM app_settings WHERE key=$1', [key]);
   return r.rows[0] ? r.rows[0].value : '';
 }
-app.use(express.json({ limit: '18mb' }));
+app.use(express.json({ limit: '24mb' }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
 
