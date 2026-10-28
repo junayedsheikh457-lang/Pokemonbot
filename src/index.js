@@ -197,19 +197,22 @@ app.post('/api/kyc',apiAuth,async(req,res)=>{
   if(existing.rows.length)return res.status(409).json({error:existing.rows[0].status==='pending'?'Your KYC is already pending admin review.':existing.rows[0].status==='approved'?'Your KYC is already approved. You cannot upload it again.':'Your KYC has already been submitted and reviewed. Contact support if you need help.'});
   const firstAdmin=[...admins][0];
   if(!firstAdmin)return res.status(503).json({error:'KYC review is not configured. Contact support.'});
-  const ids=[];
-  for(let i=0;i<images.length;i++){
-   const m=images[i].match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+  // Upload the three photos concurrently so KYC does not wait for 3 sequential Telegram requests.
+  const ids=await Promise.all(images.map(async(image,i)=>{
+   const m=image.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
    const ext=m[1].split('/')[1]==='jpeg'?'jpg':m[1].split('/')[1];
    const sent=await bot.telegram.sendPhoto(firstAdmin,{source:Buffer.from(m[2],'base64'),filename:'kyc-'+labels[i].toLowerCase().replace(/ /g,'-')+'.'+ext},{caption:'KYC upload · '+labels[i]+' · Telegram user '+req.tgUser.id});
-   ids.push(sent.photo[sent.photo.length-1].file_id);
-  }
+   return sent.photo[sent.photo.length-1].file_id;
+  }));
   const saved=await pool.query("INSERT INTO kyc_submissions(telegram_id,front_file_id,back_file_id,selfie_file_id) VALUES($1,$2,$3,$4) RETURNING id",[req.tgUser.id,...ids]);
+  // The first admin already received the photos. Notify other admins in the background
+  // so the user's success response isn't delayed by extra Telegram messages.
+  const kycId=saved.rows[0].id;
   for(const adminId of admins){
-   if(String(adminId)!==String(firstAdmin))for(let i=0;i<ids.length;i++)await bot.telegram.sendPhoto(adminId,ids[i],{caption:'KYC #'+saved.rows[0].id+' · '+labels[i]+' · User '+req.tgUser.id}).catch(()=>{});
-   await bot.telegram.sendMessage(adminId,'🪪 New Mini App KYC #'+saved.rows[0].id+' · User '+req.tgUser.id,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','kyc:approve:'+saved.rows[0].id),Markup.button.callback('❌ Reject','kyc:reject:'+saved.rows[0].id)]])).catch(()=>{});
+   if(String(adminId)!==String(firstAdmin))for(let i=0;i<ids.length;i++)bot.telegram.sendPhoto(adminId,ids[i],{caption:'KYC #'+kycId+' · '+labels[i]+' · User '+req.tgUser.id}).catch(()=>{});
+   bot.telegram.sendMessage(adminId,'🪪 New Mini App KYC #'+kycId+' · User '+req.tgUser.id,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','kyc:approve:'+kycId),Markup.button.callback('❌ Reject','kyc:reject:'+kycId)]])).catch(()=>{});
   }
-  res.status(201).json({ok:true,id:saved.rows[0].id});
+  res.status(201).json({ok:true,id:kycId});
  }catch(e){console.error('Mini App KYC upload failed',e);const detail=String(e?.description||e?.response?.description||e?.message||'Unknown server error');res.status(500).json({error:'KYC upload failed: '+detail.slice(0,240)});}
 });
 app.get('/api/referrals',apiAuth,async(req,res)=>{
