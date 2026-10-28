@@ -41,7 +41,8 @@ async function initDb() {
   await pool.query('ALTER TABLE deposits ADD COLUMN IF NOT EXISTS review_due_at TIMESTAMPTZ');
   await pool.query("CREATE TABLE IF NOT EXISTS referral_commissions (id BIGSERIAL PRIMARY KEY, referrer_id BIGINT NOT NULL REFERENCES users(telegram_id), referred_user_id BIGINT NOT NULL UNIQUE REFERENCES users(telegram_id), card_id BIGINT NOT NULL, purchase_amount NUMERIC(12,2) NOT NULL, commission_amount NUMERIC(12,2) NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS withdrawals (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), amount NUMERIC(12,2) NOT NULL CHECK(amount > 0), method TEXT NOT NULL, destination TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
-  await pool.query("CREATE TABLE IF NOT EXISTS kyc_submissions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), front_file_id TEXT NOT NULL, back_file_id TEXT NOT NULL, selfie_file_id TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await pool.query("CREATE TABLE IF NOT EXISTS kyc_submissions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), front_file_id TEXT NOT NULL, back_file_id TEXT NOT NULL, selfie_file_id TEXT, status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')), reviewed_by BIGINT, reviewed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
+  await pool.query("ALTER TABLE kyc_submissions ALTER COLUMN selfie_file_id DROP NOT NULL");
   await pool.query("CREATE TABLE IF NOT EXISTS transactions (id BIGSERIAL PRIMARY KEY, telegram_id BIGINT NOT NULL REFERENCES users(telegram_id), type TEXT NOT NULL, amount NUMERIC(12,2) NOT NULL, details TEXT DEFAULT '', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW())");
   await pool.query("CREATE TABLE IF NOT EXISTS user_states (telegram_id BIGINT PRIMARY KEY, state TEXT NOT NULL, data JSONB NOT NULL DEFAULT '{}'::jsonb)");
   await pool.query('CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)');
@@ -188,10 +189,10 @@ function apiAdmin(req,res,next) {
 const publicCard = c => ({id:Number(c.id),title:c.title,price:Number(c.listing_price ?? c.price),originalPrice:Number(c.price),image:c.image_file_id || null,description:c.description || '',category:c.category || 'Other',type:c.category || 'Other',active:c.active,ownerId:c.owner_id ? String(c.owner_id) : null,listedForSale:Boolean(c.listed_for_sale)});
 app.post('/api/kyc',apiAuth,async(req,res)=>{
  try{
-  const images=[req.body.front,req.body.back,req.body.selfie];
-  const labels=['ID FRONT','ID BACK','SELFIE HOLDING ID'];
+  const images=[req.body.front,req.body.back];
+  const labels=['ID FRONT','ID BACK'];
   const valid=x=>typeof x==='string' && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(x);
-  if(images.some(x=>!valid(x)))return res.status(400).json({error:'Choose all 3 JPG, PNG or WEBP photos.'});
+  if(images.some(x=>!valid(x)))return res.status(400).json({error:'Choose both NID front and back photos in JPG, PNG or WEBP format.'});
   if(images.some(x=>Buffer.byteLength(x.split(',')[1],'base64')>5*1024*1024))return res.status(400).json({error:'Each photo must be 5 MB or smaller.'});
   const existing=await pool.query("SELECT id,status FROM kyc_submissions WHERE telegram_id=$1 ORDER BY id DESC LIMIT 1",[req.tgUser.id]);
   if(existing.rows.length)return res.status(409).json({error:existing.rows[0].status==='pending'?'Your KYC is already pending admin review.':existing.rows[0].status==='approved'?'Your KYC is already approved. You cannot upload it again.':'Your KYC has already been submitted and reviewed. Contact support if you need help.'});
@@ -204,7 +205,7 @@ app.post('/api/kyc',apiAuth,async(req,res)=>{
    const sent=await bot.telegram.sendPhoto(firstAdmin,{source:Buffer.from(m[2],'base64'),filename:'kyc-'+labels[i].toLowerCase().replace(/ /g,'-')+'.'+ext},{caption:'KYC upload · '+labels[i]+' · Telegram user '+req.tgUser.id});
    return sent.photo[sent.photo.length-1].file_id;
   }));
-  const saved=await pool.query("INSERT INTO kyc_submissions(telegram_id,front_file_id,back_file_id,selfie_file_id) VALUES($1,$2,$3,$4) RETURNING id",[req.tgUser.id,...ids]);
+  const saved=await pool.query("INSERT INTO kyc_submissions(telegram_id,front_file_id,back_file_id,selfie_file_id) VALUES($1,$2,$3,NULL) RETURNING id",[req.tgUser.id,...ids]);
   // The first admin already received the photos. Notify other admins in the background
   // so the user's success response isn't delayed by extra Telegram messages.
   const kycId=saved.rows[0].id;
