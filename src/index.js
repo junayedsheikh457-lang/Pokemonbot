@@ -23,7 +23,8 @@ const menu = Markup.inlineKeyboard([
   [Markup.button.callback('🎴 Browse Cards', 'cards:0'), Markup.button.callback('💰 Wallet', 'wallet')],
   [Markup.button.callback('➕ Deposit', 'deposit'), Markup.button.callback('🗂 My Collection', 'collection')],
   [Markup.button.callback('💸 Sell Cards', 'sell')],
-  [Markup.button.callback('👥 Refer & Earn', 'referral'), Markup.button.callback('🪪 KYC Verify', 'kyc:start')],
+  [Markup.button.callback('👥 Refer & Earn', 'referral')],
+  [Markup.button.callback('🪪 Submit NID for Review (Chat)', 'kyc:start')],
   [Markup.button.callback('ℹ️ Help', 'help')]
 ]);
 const adminMenu = Markup.inlineKeyboard([
@@ -608,7 +609,7 @@ bot.command('kyc',async ctx=>{
 });
 bot.action('kyc:start',async ctx=>{
   await ctx.answerCbQuery();if(!hasDb)return ctx.reply('A database connection is required to use KYC verification.');await ensureUser(ctx);await setState(ctx.from.id,'kyc_front',{});
-  return ctx.reply('🪪 GOLDEN CARD MARKET — KYC\\n\\nStep 1/3: Send a clear photo of the FRONT of your own NID or passport. Then send the back, followed by a selfie holding the same ID.\\n\\nID photos are sensitive. Submit only your own documents if you agree to share them with this service.');
+  return ctx.reply('🪪 NID VERIFICATION\\n\\nSend a clear photo of the FRONT of your own NID here in this Telegram chat. Then send the BACK photo when the bot asks. Both photos will be sent privately to the admin for manual review. No Mini App or selfie is needed. Only send your own NID if you agree to share it for verification.');
 });
 bot.action('admin:kyc',async ctx=>{
   await ctx.answerCbQuery();if(!isAdmin(ctx))return ctx.reply('⛔ Access denied. Admin privileges are required.');
