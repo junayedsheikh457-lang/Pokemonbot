@@ -210,7 +210,7 @@ app.post('/api/kyc',apiAuth,async(req,res)=>{
    await bot.telegram.sendMessage(adminId,'🪪 New Mini App KYC #'+saved.rows[0].id+' · User '+req.tgUser.id,Markup.inlineKeyboard([[Markup.button.callback('✅ Approve','kyc:approve:'+saved.rows[0].id),Markup.button.callback('❌ Reject','kyc:reject:'+saved.rows[0].id)]])).catch(()=>{});
   }
   res.status(201).json({ok:true,id:saved.rows[0].id});
- }catch(e){console.error('Mini App KYC upload failed',e.message);res.status(500).json({error:'KYC upload failed. Check your connection and try again.'});}
+ }catch(e){console.error('Mini App KYC upload failed',e);const detail=String(e?.description||e?.response?.description||e?.message||'Unknown server error');res.status(500).json({error:'KYC upload failed: '+detail.slice(0,240)});}
 });
 app.get('/api/referrals',apiAuth,async(req,res)=>{
   const [u,c]=await Promise.all([pool.query('SELECT COUNT(*)::int AS count FROM users WHERE referred_by=$1',[req.tgUser.id]),pool.query('SELECT COUNT(*)::int AS count,COALESCE(SUM(commission_amount),0)::numeric AS total FROM referral_commissions WHERE referrer_id=$1',[req.tgUser.id])]);
@@ -395,6 +395,13 @@ app.patch('/api/admin/cards/:id',apiAuth,apiAdmin,async(req,res)=>{
   const r=await pool.query('UPDATE cards SET price=COALESCE($1,price),active=COALESCE($2,active) WHERE id=$3 RETURNING *',[price,typeof active==='boolean'?active:null,req.params.id]);
   if(!r.rows.length) return res.status(404).json({error:'Card not found.'});
   res.json({card:publicCard(r.rows[0])});
+});
+app.delete('/api/admin/cards/:id',apiAuth,apiAdmin,async(req,res)=>{
+  try{
+    const r=await pool.query('DELETE FROM cards WHERE id=$1 AND owner_id IS NULL RETURNING id',[req.params.id]);
+    if(!r.rows.length){const exists=await pool.query('SELECT id,owner_id FROM cards WHERE id=$1',[req.params.id]);if(!exists.rows.length)return res.status(404).json({error:'Card not found.'});return res.status(409).json({error:'This card is owned by a user and cannot be permanently deleted. Hide it from the marketplace instead.'});}
+    res.json({ok:true,id:Number(r.rows[0].id)});
+  }catch(e){console.error('Admin card delete failed',e.message);res.status(500).json({error:'Could not delete this card. Please try again.'});}
 });
 app.get('/api/admin/users',apiAuth,apiAdmin,async(_req,res)=>{
   const r=await pool.query('SELECT u.telegram_id,u.username,u.balance,COUNT(c.id)::int AS owned FROM users u LEFT JOIN cards c ON c.owner_id=u.telegram_id GROUP BY u.telegram_id ORDER BY u.telegram_id DESC LIMIT 200');
